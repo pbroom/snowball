@@ -37,6 +37,7 @@ import {
   SelectValue
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 
 const authz = new LocalAuthorizationService();
@@ -373,6 +374,7 @@ export function App() {
             </p>
           </div>
           <div className="flex w-full min-w-[260px] flex-col gap-2.5 sm:w-auto">
+            <ThemeToggle />
             <Label htmlFor="scenario-select" className="sr-only">
               Scenario
             </Label>
