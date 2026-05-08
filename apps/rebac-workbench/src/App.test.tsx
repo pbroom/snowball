@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 import { App } from "./App";
+import { ThemeProvider } from "./theme-provider";
 
 describe("App", () => {
   beforeEach(() => {
@@ -11,7 +12,11 @@ describe("App", () => {
 
   it("switches the authenticated user and rerenders their visible tasks", async () => {
     const user = userEvent.setup();
-    render(<App />);
+    render(
+      <ThemeProvider>
+        <App />
+      </ThemeProvider>
+    );
 
     expect(screen.getByRole("heading", { name: "Avery Stone" })).toBeInTheDocument();
 
