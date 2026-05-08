@@ -9,5 +9,5 @@
     "tsBuildInfoFile": "../../node_modules/.tmp/authz-core.tsbuildinfo"
   },
   "include": ["src"],
-  "references": [{ "path": "../task-core" }]
+  "references": [{ "path": "../task-core" }, { "path": "../scenario-store" }]
 }

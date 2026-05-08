@@ -3,13 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "packageManager": "bun@1.3.1",
   "workspaces": [
     "apps/*",
     "packages/*"
   ],
   "scripts": {
-    "dev": "npm run dev --workspace @snowball/rebac-workbench",
-    "build": "tsc -b && npm run build --workspace @snowball/rebac-workbench",
+    "dev": "bun run --cwd apps/rebac-workbench dev",
+    "build": "tsc -b && bun run --cwd apps/rebac-workbench build",
     "typecheck": "tsc -b",
     "test": "vitest run",
     "test:watch": "vitest",
