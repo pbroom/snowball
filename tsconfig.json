@@ -1,0 +1,9 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/task-core" },
+    { "path": "packages/authz-core" },
+    { "path": "packages/scenario-store" },
+    { "path": "apps/rebac-workbench" }
+  ]
+}
