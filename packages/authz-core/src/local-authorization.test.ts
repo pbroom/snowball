@@ -44,4 +44,102 @@ describe("LocalAuthorizationService", () => {
       }).allowed
     ).toBe(false);
   });
+
+  it("evaluates every group grant for the same relation, not only the first", () => {
+    const scenario = cloneScenario(seedScenario);
+    const stamp = "2026-01-01T12:00:00.000Z";
+    scenario.groups.push(
+      { id: "group-no-blake", name: "Empty for Blake", description: "Regression guard" },
+      { id: "group-blake-viewers", name: "Blake viewers", description: "Regression guard" }
+    );
+    scenario.tasks.push({
+      id: "task-multi-group-viewer",
+      type: "workspace",
+      title: "Multi group viewer grant",
+      owningOrgId: "org-records",
+      createdByUserId: "user-casey",
+      status: "open",
+      createdAt: stamp,
+      updatedAt: stamp
+    });
+    scenario.relationships.push(
+      {
+        id: "rel-blake-in-viewer-group",
+        subjectType: "user",
+        subjectId: "user-blake",
+        relation: "member_of",
+        objectType: "group",
+        objectId: "group-blake-viewers"
+      },
+      {
+        id: "rel-task-viewer-wrong-group-first",
+        subjectType: "task",
+        subjectId: "task-multi-group-viewer",
+        relation: "viewer",
+        objectType: "group",
+        objectId: "group-no-blake"
+      },
+      {
+        id: "rel-task-viewer-right-group-second",
+        subjectType: "task",
+        subjectId: "task-multi-group-viewer",
+        relation: "viewer",
+        objectType: "group",
+        objectId: "group-blake-viewers"
+      }
+    );
+
+    expect(
+      service.check({
+        scenario,
+        userId: "user-blake",
+        permission: "task.view",
+        resourceType: "task",
+        resourceId: "task-multi-group-viewer"
+      }).allowed
+    ).toBe(true);
+  });
+
+  it("evaluates every org grant for the same relation, not only the first", () => {
+    const scenario = cloneScenario(seedScenario);
+    const stamp = "2026-01-01T12:00:00.000Z";
+    scenario.tasks.push({
+      id: "task-multi-org-viewer",
+      type: "workspace",
+      title: "Multi org viewer grant",
+      owningOrgId: "org-records",
+      createdByUserId: "user-casey",
+      status: "open",
+      createdAt: stamp,
+      updatedAt: stamp
+    });
+    scenario.relationships.push(
+      {
+        id: "rel-task-viewer-org-without-morgan",
+        subjectType: "task",
+        subjectId: "task-multi-org-viewer",
+        relation: "viewer",
+        objectType: "org",
+        objectId: "org-platform"
+      },
+      {
+        id: "rel-task-viewer-org-with-morgan",
+        subjectType: "task",
+        subjectId: "task-multi-org-viewer",
+        relation: "viewer",
+        objectType: "org",
+        objectId: "org-executive"
+      }
+    );
+
+    expect(
+      service.check({
+        scenario,
+        userId: "user-morgan",
+        permission: "task.view",
+        resourceType: "task",
+        resourceId: "task-multi-org-viewer"
+      }).allowed
+    ).toBe(true);
+  });
 });

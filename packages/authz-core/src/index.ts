@@ -290,7 +290,7 @@ export class LocalAuthorizationService implements AuthorizationService {
         };
       }
 
-      const groupGrant = scenario.relationships.find(
+      const groupGrants = scenario.relationships.filter(
         (candidate) =>
           candidate.subjectType === resource.type &&
           candidate.subjectId === resource.id &&
@@ -298,7 +298,7 @@ export class LocalAuthorizationService implements AuthorizationService {
           candidate.objectType === "group"
       );
 
-      if (groupGrant) {
+      for (const groupGrant of groupGrants) {
         const groupPath = this.userInGroupPath(scenario, userId, groupGrant.objectId);
         if (groupPath) {
           return {
@@ -309,7 +309,7 @@ export class LocalAuthorizationService implements AuthorizationService {
         }
       }
 
-      const orgGrant = scenario.relationships.find(
+      const orgGrants = scenario.relationships.filter(
         (candidate) =>
           candidate.subjectType === resource.type &&
           candidate.subjectId === resource.id &&
@@ -317,7 +317,7 @@ export class LocalAuthorizationService implements AuthorizationService {
           candidate.objectType === "org"
       );
 
-      if (orgGrant) {
+      for (const orgGrant of orgGrants) {
         const orgPath = this.userInOrgPath(scenario, userId, orgGrant.objectId);
         if (orgPath) {
           return {
