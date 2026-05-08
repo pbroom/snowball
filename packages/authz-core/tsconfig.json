@@ -2,12 +2,12 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "composite": true,
+    "noEmit": false,
     "declaration": true,
-    "declarationMap": true,
     "emitDeclarationOnly": true,
-    "outDir": "dist-types",
+    "declarationDir": "dist-types",
     "tsBuildInfoFile": "../../node_modules/.tmp/authz-core.tsbuildinfo"
   },
   "include": ["src"],
-  "references": [{ "path": "../task-core" }, { "path": "../scenario-store" }]
+  "references": [{ "path": "../task-core" }]
 }

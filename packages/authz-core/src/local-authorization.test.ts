@@ -1,97 +1,145 @@
-import { seedScenario } from "@snowball/scenario-store";
+import { cloneScenario, seedScenario } from "@snowball/scenario-store";
 import { describe, expect, it } from "vitest";
-import { LocalAuthorizationService, formatPath } from "./index";
-
-const authz = new LocalAuthorizationService();
+import { LocalAuthorizationService } from "./index";
 
 describe("LocalAuthorizationService", () => {
-  it("allows owning org members to view and edit package tasks", () => {
-    const view = authz.check({
-      scenario: seedScenario,
-      userId: "user-peter",
+  const service = new LocalAuthorizationService();
+
+  it("lets task view access flow through explicit inherited parent access", () => {
+    const scenario = cloneScenario(seedScenario);
+
+    const decision = service.explain({
+      scenario,
+      userId: "user-morgan",
       permission: "task.view",
       resourceType: "task",
-      resourceId: "task-package"
-    });
-    const edit = authz.check({
-      scenario: seedScenario,
-      userId: "user-peter",
-      permission: "task.edit",
-      resourceType: "task",
-      resourceId: "task-package"
+      resourceId: "task-rebac-policy"
     });
 
-    expect(view.allowed).toBe(true);
-    expect(edit.allowed).toBe(true);
-    expect(edit.ruleId).toBe("task.creator");
+    expect(decision.allowed).toBe(true);
+    expect(decision.ruleId).toBe("task.parent-inheritance");
+    expect(decision.path.map((step) => step.relation)).toContain("inherits_access_from");
   });
 
-  it("allows assigned org members to view and clear but not edit", () => {
-    const view = authz.check({
-      scenario: seedScenario,
-      userId: "user-jane",
-      permission: "task.view",
-      resourceType: "task",
-      resourceId: "task-package"
-    });
-    const clear = authz.check({
-      scenario: seedScenario,
-      userId: "user-jane",
-      permission: "task.clear",
-      resourceType: "task",
-      resourceId: "task-clearance-eur"
-    });
-    const edit = authz.check({
-      scenario: seedScenario,
-      userId: "user-jane",
-      permission: "task.edit",
-      resourceType: "task",
-      resourceId: "task-package"
-    });
+  it("enforces restricted resource grants independently from task visibility", () => {
+    const scenario = cloneScenario(seedScenario);
 
-    expect(view.allowed).toBe(true);
-    expect(clear.allowed).toBe(true);
-    expect(edit.allowed).toBe(false);
-    expect(formatPath(seedScenario, view.path)).toContain("EUR");
+    expect(
+      service.check({
+        scenario,
+        userId: "user-casey",
+        permission: "resource.view",
+        resourceType: "resource",
+        resourceId: "resource-ato-evidence"
+      }).allowed
+    ).toBe(true);
+
+    expect(
+      service.check({
+        scenario,
+        userId: "user-avery",
+        permission: "resource.view",
+        resourceType: "resource",
+        resourceId: "resource-ato-evidence"
+      }).allowed
+    ).toBe(false);
   });
 
-  it("uses group grants for records review visibility", () => {
-    const result = authz.check({
-      scenario: seedScenario,
-      userId: "user-asha",
-      permission: "task.view",
-      resourceType: "task",
-      resourceId: "task-records"
+  it("evaluates every group grant for the same relation, not only the first", () => {
+    const scenario = cloneScenario(seedScenario);
+    const stamp = "2026-01-01T12:00:00.000Z";
+    scenario.groups.push(
+      { id: "group-no-blake", name: "Empty for Blake", description: "Regression guard" },
+      { id: "group-blake-viewers", name: "Blake viewers", description: "Regression guard" }
+    );
+    scenario.tasks.push({
+      id: "task-multi-group-viewer",
+      type: "workspace",
+      title: "Multi group viewer grant",
+      owningOrgId: "org-records",
+      createdByUserId: "user-casey",
+      status: "open",
+      createdAt: stamp,
+      updatedAt: stamp
     });
+    scenario.relationships.push(
+      {
+        id: "rel-blake-in-viewer-group",
+        subjectType: "user",
+        subjectId: "user-blake",
+        relation: "member_of",
+        objectType: "group",
+        objectId: "group-blake-viewers"
+      },
+      {
+        id: "rel-task-viewer-wrong-group-first",
+        subjectType: "task",
+        subjectId: "task-multi-group-viewer",
+        relation: "viewer",
+        objectType: "group",
+        objectId: "group-no-blake"
+      },
+      {
+        id: "rel-task-viewer-right-group-second",
+        subjectType: "task",
+        subjectId: "task-multi-group-viewer",
+        relation: "viewer",
+        objectType: "group",
+        objectId: "group-blake-viewers"
+      }
+    );
 
-    expect(result.allowed).toBe(true);
-    expect(result.ruleId).toBe("task.viewer.group");
-    expect(formatPath(seedScenario, result.path)).toContain("Records Reviewers");
+    expect(
+      service.check({
+        scenario,
+        userId: "user-blake",
+        permission: "task.view",
+        resourceType: "task",
+        resourceId: "task-multi-group-viewer"
+      }).allowed
+    ).toBe(true);
   });
 
-  it("uses explicit approver grants for approval actions", () => {
-    const result = authz.check({
-      scenario: seedScenario,
-      userId: "user-bob",
-      permission: "task.approve",
-      resourceType: "task",
-      resourceId: "task-approval-ses"
+  it("evaluates every org grant for the same relation, not only the first", () => {
+    const scenario = cloneScenario(seedScenario);
+    const stamp = "2026-01-01T12:00:00.000Z";
+    scenario.tasks.push({
+      id: "task-multi-org-viewer",
+      type: "workspace",
+      title: "Multi org viewer grant",
+      owningOrgId: "org-records",
+      createdByUserId: "user-casey",
+      status: "open",
+      createdAt: stamp,
+      updatedAt: stamp
     });
+    scenario.relationships.push(
+      {
+        id: "rel-task-viewer-org-without-morgan",
+        subjectType: "task",
+        subjectId: "task-multi-org-viewer",
+        relation: "viewer",
+        objectType: "org",
+        objectId: "org-platform"
+      },
+      {
+        id: "rel-task-viewer-org-with-morgan",
+        subjectType: "task",
+        subjectId: "task-multi-org-viewer",
+        relation: "viewer",
+        objectType: "org",
+        objectId: "org-executive"
+      }
+    );
 
-    expect(result.allowed).toBe(true);
-    expect(result.ruleId).toBe("task.approver");
-  });
-
-  it("denies unrelated access with an actionable reason", () => {
-    const result = authz.check({
-      scenario: seedScenario,
-      userId: "user-jane",
-      permission: "task.approve",
-      resourceType: "task",
-      resourceId: "task-approval-ses"
-    });
-
-    expect(result.allowed).toBe(false);
-    expect(result.reason).toContain("Approve requires");
+    expect(
+      service.check({
+        scenario,
+        userId: "user-morgan",
+        permission: "task.view",
+        resourceType: "task",
+        resourceId: "task-multi-org-viewer"
+      }).allowed
+    ).toBe(true);
   });
 });
