@@ -1,5 +1,8 @@
 node_modules/
 dist/
 dist-types/
-.cursor/
 .DS_Store
+.env
+.env.*
+!.env.example
+*.tsbuildinfo

@@ -1,127 +1,147 @@
-import type { EntityType, Scenario, ValidationIssue } from "@snowball/task-core";
+import type {
+  AuditEvent,
+  EntityRef,
+  EntityType,
+  Relationship,
+  RelationshipRelation,
+  Scenario,
+  Task,
+  ValidationIssue
+} from "@snowball/task-core";
 
-const STORAGE_KEY = "snowball.rebac-workbench.scenarios";
+const STORAGE_KEY = "snowball.task-workbench.scenarios";
+const NOW = "2026-01-01T12:00:00.000Z";
 
 export const seedScenario: Scenario = {
-  id: "basic-bureau-clearance",
-  name: "Basic Bureau Clearance",
+  id: "task-primitive-lab",
+  name: "Task Primitive Lab",
   description:
-    "A starter world for testing owning org access, assigned org clearance, parent inheritance, and restricted subresources.",
-  policyVersion: "local-v0.1",
+    "A clean starter world for modeling task shells, org membership, relationship-driven permissions, restricted resources, and audit history.",
+  policyVersion: "local-task-primitive-v0.1",
   users: [
-    { id: "user-peter", name: "Peter Grant", title: "AF Package Drafter" },
-    { id: "user-jane", name: "Jane Rivera", title: "EUR Clearance Officer" },
-    { id: "user-bob", name: "Bob Chen", title: "S/ES Approver" },
-    { id: "user-maya", name: "Maya Thomas", title: "Records Reviewer" },
-    { id: "user-asha", name: "Asha Williams", title: "Records Reviewer" }
+    { id: "user-avery", displayName: "Avery Stone", title: "Platform Analyst", primaryOrgId: "org-platform" },
+    { id: "user-blake", displayName: "Blake Chen", title: "Operations Reviewer", primaryOrgId: "org-operations" },
+    { id: "user-casey", displayName: "Casey Rivera", title: "Records Officer", primaryOrgId: "org-records" },
+    { id: "user-morgan", displayName: "Morgan Lee", title: "Executive Sponsor", primaryOrgId: "org-executive" }
   ],
   orgs: [
-    { id: "org-state", name: "Department of State", abbreviation: "State" },
-    { id: "org-af", name: "Bureau of African Affairs", abbreviation: "AF", parentOrgId: "org-state" },
-    { id: "org-af-ex", name: "AF Executive Office", abbreviation: "AF/EX", parentOrgId: "org-af" },
-    { id: "org-af-fo", name: "AF Front Office", abbreviation: "AF/FO", parentOrgId: "org-af" },
-    { id: "org-eur", name: "Bureau of European Affairs", abbreviation: "EUR", parentOrgId: "org-state" },
-    { id: "org-eur-ex", name: "EUR Executive Office", abbreviation: "EUR/EX", parentOrgId: "org-eur" },
-    { id: "org-ses", name: "Executive Secretariat", abbreviation: "S/ES", parentOrgId: "org-state" },
-    { id: "org-records", name: "Records Management", abbreviation: "Records", parentOrgId: "org-state" }
+    { id: "org-root", name: "Snowball Prototype", abbreviation: "ROOT" },
+    { id: "org-platform", name: "Platform Team", abbreviation: "PLAT", parentOrgId: "org-root" },
+    { id: "org-operations", name: "Operations Team", abbreviation: "OPS", parentOrgId: "org-root" },
+    { id: "org-records", name: "Records Management", abbreviation: "REC", parentOrgId: "org-root" },
+    { id: "org-executive", name: "Executive Office", abbreviation: "EXEC", parentOrgId: "org-root" }
   ],
   groups: [
-    { id: "group-front-office", name: "Front Office Staff" },
-    { id: "group-records-reviewers", name: "Records Reviewers" }
+    {
+      id: "group-records-stewards",
+      name: "Records Stewards",
+      description: "Users allowed to inspect restricted records and ATO evidence resources."
+    }
   ],
   tasks: [
-    {
-      id: "task-trip",
-      title: "Secretary Trip to Brussels",
-      taskType: "trip",
-      description: "Parent trip task for testing explicit inheritance.",
-      owningOrgId: "org-ses",
-      createdByUserId: "user-bob",
-      status: "in_review"
-    },
-    {
-      id: "task-stop",
-      title: "Brussels Stop",
-      taskType: "trip_stop",
-      description: "Stop task nested under the trip.",
-      parentTaskId: "task-trip",
-      owningOrgId: "org-ses",
-      createdByUserId: "user-bob",
-      status: "in_review"
-    },
-    {
-      id: "task-package",
-      title: "Trip Memo Package",
-      taskType: "package_submission",
-      description: "Package owned by AF and assigned to EUR for clearance.",
-      parentTaskId: "task-stop",
-      owningOrgId: "org-af",
-      createdByUserId: "user-peter",
-      status: "assigned"
-    },
-    {
-      id: "task-clearance-eur",
-      title: "EUR Clearance",
-      taskType: "clearance",
-      description: "Child task assigned to EUR.",
-      parentTaskId: "task-package",
-      owningOrgId: "org-af",
-      createdByUserId: "user-peter",
-      status: "assigned"
-    },
-    {
-      id: "task-approval-ses",
-      title: "S/ES Approval",
-      taskType: "approval",
-      description: "Approval task restricted to S/ES approvers.",
-      parentTaskId: "task-package",
-      owningOrgId: "org-ses",
-      createdByUserId: "user-bob",
-      status: "draft"
-    },
-    {
-      id: "task-records",
-      title: "Records Review",
-      taskType: "records_review",
-      description: "Records review with group-based access.",
-      parentTaskId: "task-package",
+    createSeedTask({
+      id: "task-platform-shell",
+      type: "workspace",
+      title: "Define the task primitive shell",
+      owningOrgId: "org-platform",
+      createdByUserId: "user-avery",
+      status: "in_progress"
+    }),
+    createSeedTask({
+      id: "task-rebac-policy",
+      type: "policy_experiment",
+      title: "Model relationship-based access rules",
+      parentTaskId: "task-platform-shell",
+      owningOrgId: "org-platform",
+      createdByUserId: "user-avery",
+      status: "open"
+    }),
+    createSeedTask({
+      id: "task-ops-review",
+      type: "review",
+      title: "Operations review of the task shell",
+      parentTaskId: "task-platform-shell",
+      owningOrgId: "org-platform",
+      createdByUserId: "user-blake",
+      status: "open"
+    }),
+    createSeedTask({
+      id: "task-records-audit",
+      type: "audit_readiness",
+      title: "Map audit and records obligations",
+      parentTaskId: "task-platform-shell",
       owningOrgId: "org-records",
-      createdByUserId: "user-maya",
-      status: "draft"
+      createdByUserId: "user-casey",
+      status: "blocked"
+    })
+  ],
+  resources: [
+    {
+      id: "resource-shell-brief",
+      taskId: "task-platform-shell",
+      kind: "note",
+      title: "Primitive design brief",
+      createdByUserId: "user-avery",
+      createdAt: NOW,
+      payload: {
+        summary: "Tasks are abstract shells; resources and relationships carry workflow details."
+      }
+    },
+    {
+      id: "resource-ato-evidence",
+      taskId: "task-records-audit",
+      kind: "attachment",
+      title: "ATO evidence checklist",
+      createdByUserId: "user-casey",
+      createdAt: NOW,
+      payload: {
+        classification: "restricted prototype data"
+      }
     }
   ],
   relationships: [
-    { id: "rel-peter-af-ex", subjectType: "user", subjectId: "user-peter", relation: "member_of", objectType: "org", objectId: "org-af-ex" },
-    { id: "rel-jane-eur-ex", subjectType: "user", subjectId: "user-jane", relation: "member_of", objectType: "org", objectId: "org-eur-ex" },
-    { id: "rel-bob-ses", subjectType: "user", subjectId: "user-bob", relation: "member_of", objectType: "org", objectId: "org-ses" },
-    { id: "rel-maya-records", subjectType: "user", subjectId: "user-maya", relation: "member_of", objectType: "org", objectId: "org-records" },
-    { id: "rel-asha-records", subjectType: "user", subjectId: "user-asha", relation: "member_of", objectType: "org", objectId: "org-records" },
-    { id: "rel-bob-front-office", subjectType: "user", subjectId: "user-bob", relation: "member_of", objectType: "group", objectId: "group-front-office" },
-    { id: "rel-maya-records-group", subjectType: "user", subjectId: "user-maya", relation: "member_of", objectType: "group", objectId: "group-records-reviewers" },
-    { id: "rel-asha-records-group", subjectType: "user", subjectId: "user-asha", relation: "member_of", objectType: "group", objectId: "group-records-reviewers" },
-    { id: "rel-af-ex-af", subjectType: "org", subjectId: "org-af-ex", relation: "child_of", objectType: "org", objectId: "org-af" },
-    { id: "rel-af-fo-af", subjectType: "org", subjectId: "org-af-fo", relation: "child_of", objectType: "org", objectId: "org-af" },
-    { id: "rel-af-state", subjectType: "org", subjectId: "org-af", relation: "child_of", objectType: "org", objectId: "org-state" },
-    { id: "rel-eur-ex-eur", subjectType: "org", subjectId: "org-eur-ex", relation: "child_of", objectType: "org", objectId: "org-eur" },
-    { id: "rel-eur-state", subjectType: "org", subjectId: "org-eur", relation: "child_of", objectType: "org", objectId: "org-state" },
-    { id: "rel-ses-state", subjectType: "org", subjectId: "org-ses", relation: "child_of", objectType: "org", objectId: "org-state" },
-    { id: "rel-records-state", subjectType: "org", subjectId: "org-records", relation: "child_of", objectType: "org", objectId: "org-state" },
-    { id: "rel-trip-owned-ses", subjectType: "task", subjectId: "task-trip", relation: "owned_by", objectType: "org", objectId: "org-ses" },
-    { id: "rel-stop-parent-trip", subjectType: "task", subjectId: "task-stop", relation: "parent", objectType: "task", objectId: "task-trip" },
-    { id: "rel-stop-inherits-trip", subjectType: "task", subjectId: "task-stop", relation: "inherits_access_from", objectType: "task", objectId: "task-trip" },
-    { id: "rel-package-parent-stop", subjectType: "task", subjectId: "task-package", relation: "parent", objectType: "task", objectId: "task-stop" },
-    { id: "rel-package-owned-af", subjectType: "task", subjectId: "task-package", relation: "owned_by", objectType: "org", objectId: "org-af" },
-    { id: "rel-package-assigned-eur", subjectType: "task", subjectId: "task-package", relation: "assigned_to", objectType: "org", objectId: "org-eur" },
-    { id: "rel-package-editor-peter", subjectType: "task", subjectId: "task-package", relation: "editor", objectType: "user", objectId: "user-peter" },
-    { id: "rel-clearance-parent-package", subjectType: "task", subjectId: "task-clearance-eur", relation: "parent", objectType: "task", objectId: "task-package" },
-    { id: "rel-clearance-owned-af", subjectType: "task", subjectId: "task-clearance-eur", relation: "owned_by", objectType: "org", objectId: "org-af" },
-    { id: "rel-clearance-assigned-eur", subjectType: "task", subjectId: "task-clearance-eur", relation: "assigned_to", objectType: "org", objectId: "org-eur" },
-    { id: "rel-approval-parent-package", subjectType: "task", subjectId: "task-approval-ses", relation: "parent", objectType: "task", objectId: "task-package" },
-    { id: "rel-approval-owned-ses", subjectType: "task", subjectId: "task-approval-ses", relation: "owned_by", objectType: "org", objectId: "org-ses" },
-    { id: "rel-approval-approver-bob", subjectType: "task", subjectId: "task-approval-ses", relation: "approver", objectType: "user", objectId: "user-bob" },
-    { id: "rel-records-parent-package", subjectType: "task", subjectId: "task-records", relation: "parent", objectType: "task", objectId: "task-package" },
-    { id: "rel-records-owned-records", subjectType: "task", subjectId: "task-records", relation: "owned_by", objectType: "org", objectId: "org-records" },
-    { id: "rel-records-viewer-group", subjectType: "task", subjectId: "task-records", relation: "viewer", objectType: "group", objectId: "group-records-reviewers" }
+    relationship("rel-avery-platform", "user", "user-avery", "member_of", "org", "org-platform"),
+    relationship("rel-blake-operations", "user", "user-blake", "member_of", "org", "org-operations"),
+    relationship("rel-casey-records", "user", "user-casey", "member_of", "org", "org-records"),
+    relationship("rel-morgan-exec", "user", "user-morgan", "member_of", "org", "org-executive"),
+    relationship("rel-casey-records-stewards", "user", "user-casey", "member_of", "group", "group-records-stewards"),
+    relationship("rel-platform-root", "org", "org-platform", "child_of", "org", "org-root"),
+    relationship("rel-ops-root", "org", "org-operations", "child_of", "org", "org-root"),
+    relationship("rel-records-root", "org", "org-records", "child_of", "org", "org-root"),
+    relationship("rel-exec-root", "org", "org-executive", "child_of", "org", "org-root"),
+    relationship("rel-shell-owned-platform", "task", "task-platform-shell", "owned_by", "org", "org-platform"),
+    relationship("rel-shell-viewer-exec", "task", "task-platform-shell", "viewer", "org", "org-executive"),
+    relationship("rel-policy-parent-shell", "task", "task-rebac-policy", "parent", "task", "task-platform-shell"),
+    relationship(
+      "rel-policy-inherits-shell",
+      "task",
+      "task-rebac-policy",
+      "inherits_access_from",
+      "task",
+      "task-platform-shell"
+    ),
+    relationship("rel-ops-parent-shell", "task", "task-ops-review", "parent", "task", "task-platform-shell"),
+    relationship("rel-ops-assigned", "task", "task-ops-review", "assigned_to", "org", "org-operations"),
+    relationship("rel-audit-parent-shell", "task", "task-records-audit", "parent", "task", "task-platform-shell"),
+    relationship("rel-audit-owned-records", "task", "task-records-audit", "owned_by", "org", "org-records"),
+    relationship("rel-audit-resource-restricted", "resource", "resource-ato-evidence", "restricted_to", "group", "group-records-stewards")
+  ],
+  auditEvents: [
+    auditEvent({
+      id: "audit-seed-created",
+      action: "scenario.created",
+      target: { type: "task", id: "task-platform-shell" },
+      summary: "Seed scenario created for task primitive milestone work."
+    }),
+    auditEvent({
+      id: "audit-resource-restricted",
+      action: "relationship.created",
+      actorUserId: "user-casey",
+      effectiveUserId: "user-casey",
+      target: { type: "resource", id: "resource-ato-evidence" },
+      summary: "ATO evidence checklist restricted to records stewards.",
+      metadata: { relationshipId: "rel-audit-resource-restricted" }
+    })
   ]
 };
 
@@ -132,14 +152,16 @@ export function cloneScenario(scenario: Scenario): Scenario {
 export function createEmptyScenario(): Scenario {
   return {
     id: `scenario-${crypto.randomUUID()}`,
-    name: "Untitled Scenario",
-    description: "A blank ReBAC modeling scenario.",
-    policyVersion: "local-v0.1",
+    name: "Untitled Task Scenario",
+    description: "A blank task primitive modeling scenario.",
+    policyVersion: "local-task-primitive-v0.1",
     users: [],
     orgs: [],
     groups: [],
     tasks: [],
-    relationships: []
+    resources: [],
+    relationships: [],
+    auditEvents: []
   };
 }
 
@@ -177,7 +199,7 @@ export function importScenario(raw: string): Scenario {
   const parsed = JSON.parse(raw) as Scenario;
   const issues = validateScenario(parsed).filter((issue) => issue.level === "error");
   if (issues.length > 0) {
-    throw new Error(issues.map((issue) => issue.message).join("\\n"));
+    throw new Error(issues.map((issue) => issue.message).join("\n"));
   }
 
   return parsed;
@@ -190,24 +212,23 @@ export function validateScenario(scenario: Scenario): ValidationIssue[] {
     ["org", new Set(scenario.orgs.map((org) => org.id))],
     ["group", new Set(scenario.groups.map((group) => group.id))],
     ["task", new Set(scenario.tasks.map((task) => task.id))],
-    ["artifact", new Set()],
-    ["note", new Set()]
+    ["resource", new Set(scenario.resources.map((resource) => resource.id))]
   ]);
 
-  for (const relationship of scenario.relationships) {
-    if (!idsByType.get(relationship.subjectType)?.has(relationship.subjectId)) {
+  for (const relationshipItem of scenario.relationships) {
+    if (!idsByType.get(relationshipItem.subjectType)?.has(relationshipItem.subjectId)) {
       issues.push({
         level: "error",
-        message: `Relationship ${relationship.id} references missing ${relationship.subjectType} subject ${relationship.subjectId}.`,
-        relationshipId: relationship.id
+        message: `Relationship ${relationshipItem.id} references missing ${relationshipItem.subjectType} subject ${relationshipItem.subjectId}.`,
+        relationshipId: relationshipItem.id
       });
     }
 
-    if (!idsByType.get(relationship.objectType)?.has(relationship.objectId)) {
+    if (!idsByType.get(relationshipItem.objectType)?.has(relationshipItem.objectId)) {
       issues.push({
         level: "error",
-        message: `Relationship ${relationship.id} references missing ${relationship.objectType} object ${relationship.objectId}.`,
-        relationshipId: relationship.id
+        message: `Relationship ${relationshipItem.id} references missing ${relationshipItem.objectType} object ${relationshipItem.objectId}.`,
+        relationshipId: relationshipItem.id
       });
     }
   }
@@ -226,8 +247,64 @@ export function validateScenario(scenario: Scenario): ValidationIssue[] {
     }
   }
 
+  for (const resource of scenario.resources) {
+    if (!idsByType.get("task")?.has(resource.taskId)) {
+      issues.push({ level: "error", message: `Resource ${resource.id} references missing task ${resource.taskId}.` });
+    }
+
+    if (!idsByType.get("user")?.has(resource.createdByUserId)) {
+      issues.push({ level: "error", message: `Resource ${resource.id} references missing creator ${resource.createdByUserId}.` });
+    }
+  }
+
   issues.push(...validateOrgTree(scenario));
   return issues;
+}
+
+export function buildAuditEvent(input: {
+  action: AuditEvent["action"];
+  actorUserId?: string;
+  effectiveUserId?: string;
+  target: EntityRef;
+  summary: string;
+  metadata?: Record<string, unknown>;
+}): AuditEvent {
+  return auditEvent({
+    id: `audit-${crypto.randomUUID()}`,
+    action: input.action,
+    actorUserId: input.actorUserId,
+    effectiveUserId: input.effectiveUserId,
+    target: input.target,
+    summary: input.summary,
+    metadata: input.metadata,
+    occurredAt: new Date().toISOString()
+  });
+}
+
+function createSeedTask(task: Omit<Task, "createdAt" | "updatedAt">): Task {
+  return {
+    ...task,
+    createdAt: NOW,
+    updatedAt: NOW
+  };
+}
+
+function relationship(
+  id: string,
+  subjectType: EntityType,
+  subjectId: string,
+  relation: RelationshipRelation,
+  objectType: EntityType,
+  objectId: string
+): Relationship {
+  return { id, subjectType, subjectId, relation, objectType, objectId };
+}
+
+function auditEvent(input: Omit<AuditEvent, "occurredAt"> & { occurredAt?: string }): AuditEvent {
+  return {
+    ...input,
+    occurredAt: input.occurredAt ?? NOW
+  };
 }
 
 function validateOrgTree(scenario: Scenario): ValidationIssue[] {
@@ -235,9 +312,12 @@ function validateOrgTree(scenario: Scenario): ValidationIssue[] {
   const byId = new Map(scenario.orgs.map((org) => [org.id, org]));
 
   for (const org of scenario.orgs) {
+    if (org.parentOrgId && !byId.has(org.parentOrgId)) {
+      issues.push({ level: "error", message: `Org ${org.id} references missing parent org ${org.parentOrgId}.` });
+    }
+
     const seen = new Set<string>();
     let cursor = org.parentOrgId;
-
     while (cursor) {
       if (seen.has(cursor)) {
         issues.push({ level: "error", message: `Org tree contains a cycle at ${org.id}.` });
