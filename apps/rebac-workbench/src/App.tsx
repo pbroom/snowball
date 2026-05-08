@@ -21,6 +21,24 @@ import {
 } from "@snowball/task-core";
 import { useMemo, useState, type FormEvent } from "react";
 
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
+import { cn } from "@/lib/utils";
+
 const authz = new LocalAuthorizationService();
 
 const ENTITY_TYPES: readonly EntityType[] = ["user", "org", "group", "task", "resource"] as const;
@@ -40,6 +58,9 @@ const RELATIONS: readonly RelationshipRelation[] = [
   "restricted_to"
 ] as const;
 const TASK_STATUSES: readonly TaskStatus[] = ["open", "in_progress", "blocked", "done"] as const;
+
+/** Radix Select requires non-empty values; map to "" in state for optional parents. */
+const SELECT_NONE = "__none__";
 
 type EntityOption = {
   id: string;
@@ -339,328 +360,452 @@ export function App() {
   }
 
   return (
-    <main className="app-shell">
-      <header className="hero">
-        <div>
-          <p className="eyebrow">Task primitive milestone 1</p>
-          <h1>Boring task shell, explainable access graph.</h1>
-          <p className="lede">
-            Build tiny org worlds, switch users instantly, edit relationship edges, and inspect what the current user can see.
-          </p>
-        </div>
-        <div className="hero-actions">
-          <select
-            aria-label="Scenario"
-            value={scenario.id}
-            onChange={(event) => setSelectedScenarioId(event.target.value)}
-          >
-            {scenarios.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-              </option>
-            ))}
-          </select>
-          <button type="button" onClick={saveCurrentScenarios}>
-            Save
-          </button>
-          <button type="button" className="secondary" onClick={resetSeedScenario}>
-            Reset
-          </button>
-          <span className="save-state">{saveState}</span>
-        </div>
-      </header>
-
-      <section className="workspace-grid">
-        <aside className="panel identity-panel" aria-label="Organizations and users">
-          <PanelHeading eyebrow="Identity graph" title="Orgs and users" />
-          <OrgTree
-            scenario={scenario}
-            currentUserId={effectiveUserId}
-            onSelectUser={selectUser}
-            onDeleteUser={deleteUser}
-            onDeleteOrg={deleteOrg}
-          />
-        </aside>
-
-        <section className="panel builder-panel" aria-label="Scenario builders">
-          <PanelHeading eyebrow="Create" title="Minimal primitives" />
-          <div className="builder-grid">
-            <form onSubmit={addOrg} className="mini-form">
-              <label>
-                Org name
-                <input
-                  value={builderDraft.orgName}
-                  onChange={(event) => setBuilderDraft((draft) => ({ ...draft, orgName: event.target.value }))}
-                  placeholder="Policy Team"
-                />
-              </label>
-              <label>
-                Parent org
-                <select
-                  value={builderDraft.orgParentId}
-                  onChange={(event) => setBuilderDraft((draft) => ({ ...draft, orgParentId: event.target.value }))}
-                >
-                  <option value="">No parent</option>
-                  {scenario.orgs.map((org) => (
-                    <option key={org.id} value={org.id}>
-                      {org.abbreviation ?? org.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <button type="submit">Add org</button>
-            </form>
-
-            <form onSubmit={addUser} className="mini-form">
-              <label>
-                User name
-                <input
-                  value={builderDraft.userName}
-                  onChange={(event) => setBuilderDraft((draft) => ({ ...draft, userName: event.target.value }))}
-                  placeholder="Jordan Smith"
-                />
-              </label>
-              <label>
-                Member of
-                <select
-                  value={builderDraft.userOrgId}
-                  onChange={(event) => setBuilderDraft((draft) => ({ ...draft, userOrgId: event.target.value }))}
-                >
-                  {scenario.orgs.map((org) => (
-                    <option key={org.id} value={org.id}>
-                      {org.abbreviation ?? org.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <button type="submit">Add user</button>
-            </form>
-
-            <form onSubmit={addTask} className="mini-form">
-              <label>
-                Task title
-                <input
-                  value={builderDraft.taskTitle}
-                  onChange={(event) => setBuilderDraft((draft) => ({ ...draft, taskTitle: event.target.value }))}
-                  placeholder="Draft API shell"
-                />
-              </label>
-              <label>
-                Type
-                <input
-                  value={builderDraft.taskType}
-                  onChange={(event) => setBuilderDraft((draft) => ({ ...draft, taskType: event.target.value }))}
-                  placeholder="task"
-                />
-              </label>
-              <label>
-                Owning org
-                <select
-                  value={builderDraft.taskOwnerOrgId}
-                  onChange={(event) => setBuilderDraft((draft) => ({ ...draft, taskOwnerOrgId: event.target.value }))}
-                >
-                  {scenario.orgs.map((org) => (
-                    <option key={org.id} value={org.id}>
-                      {org.abbreviation ?? org.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Parent task
-                <select
-                  value={builderDraft.taskParentId}
-                  onChange={(event) => setBuilderDraft((draft) => ({ ...draft, taskParentId: event.target.value }))}
-                >
-                  <option value="">No parent</option>
-                  {scenario.tasks.map((task) => (
-                    <option key={task.id} value={task.id}>
-                      {task.title}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <button type="submit">Add task</button>
-            </form>
+    <main className="min-h-screen bg-muted/30 p-6">
+      <Card className="mb-4 shadow-md shadow-black/[0.06] ring-border/60">
+        <CardContent className="flex flex-col gap-6 pt-6 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex min-w-0 flex-col gap-2">
+            <p className="text-[0.72rem] font-black uppercase tracking-[0.14em] text-primary">Task primitive milestone 1</p>
+            <h1 className="font-heading max-w-[760px] text-[clamp(2rem,4vw,4rem)] font-medium leading-[0.96] tracking-tight">
+              Boring task shell, explainable access graph.
+            </h1>
+            <p className="max-w-[760px] text-base leading-relaxed text-muted-foreground">
+              Build tiny org worlds, switch users instantly, edit relationship edges, and inspect what the current user can see.
+            </p>
           </div>
-        </section>
+          <div className="flex w-full min-w-[260px] flex-col gap-2.5 sm:w-auto">
+            <Label htmlFor="scenario-select" className="sr-only">
+              Scenario
+            </Label>
+            <Select value={scenario.id} onValueChange={setSelectedScenarioId}>
+              <SelectTrigger id="scenario-select" className="w-full" aria-label="Scenario">
+                <SelectValue placeholder="Scenario" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  {scenarios.map((item) => (
+                    <SelectItem key={item.id} value={item.id}>
+                      {item.name}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+            <Button type="button" onClick={saveCurrentScenarios}>
+              Save
+            </Button>
+            <Button type="button" variant="secondary" onClick={resetSeedScenario}>
+              Reset
+            </Button>
+            <p className="text-sm text-muted-foreground">{saveState}</p>
+          </div>
+        </CardContent>
+      </Card>
 
-        <section className="panel app-panel" aria-label="Authenticated task view">
+      <div className="workspace-grid">
+        <Card className="identity-panel min-h-0 shadow-md shadow-black/[0.06] ring-border/60" aria-label="Organizations and users">
+          <PanelHeading eyebrow="Identity graph" title="Orgs and users" />
+          <CardContent className="pt-0">
+            <OrgTree
+              scenario={scenario}
+              currentUserId={effectiveUserId}
+              onSelectUser={selectUser}
+              onDeleteUser={deleteUser}
+              onDeleteOrg={deleteOrg}
+            />
+          </CardContent>
+        </Card>
+
+        <Card className="builder-panel min-h-0 shadow-md shadow-black/[0.06] ring-border/60" aria-label="Scenario builders">
+          <PanelHeading eyebrow="Create" title="Minimal primitives" />
+          <CardContent className="pt-0">
+            <div className="grid gap-4 md:grid-cols-3">
+              <form onSubmit={addOrg} className="flex flex-col gap-2.5 rounded-xl border border-border/80 bg-card/50 p-4">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="org-name">Org name</Label>
+                  <Input
+                    id="org-name"
+                    value={builderDraft.orgName}
+                    onChange={(event) => setBuilderDraft((draft) => ({ ...draft, orgName: event.target.value }))}
+                    placeholder="Policy Team"
+                    autoComplete="off"
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="org-parent">Parent org</Label>
+                  <Select
+                    value={builderDraft.orgParentId || SELECT_NONE}
+                    onValueChange={(value) =>
+                      setBuilderDraft((draft) => ({ ...draft, orgParentId: value === SELECT_NONE ? "" : value }))
+                    }
+                  >
+                    <SelectTrigger id="org-parent" className="w-full">
+                      <SelectValue placeholder="No parent" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectItem value={SELECT_NONE}>No parent</SelectItem>
+                        {scenario.orgs.map((org) => (
+                          <SelectItem key={org.id} value={org.id}>
+                            {org.abbreviation ?? org.name}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button type="submit">Add org</Button>
+              </form>
+
+              <form onSubmit={addUser} className="flex flex-col gap-2.5 rounded-xl border border-border/80 bg-card/50 p-4">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="user-name">User name</Label>
+                  <Input
+                    id="user-name"
+                    value={builderDraft.userName}
+                    onChange={(event) => setBuilderDraft((draft) => ({ ...draft, userName: event.target.value }))}
+                    placeholder="Jordan Smith"
+                    autoComplete="off"
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="user-org">Member of</Label>
+                  <Select
+                    value={builderDraft.userOrgId}
+                    onValueChange={(value) => setBuilderDraft((draft) => ({ ...draft, userOrgId: value }))}
+                  >
+                    <SelectTrigger id="user-org" className="w-full">
+                      <SelectValue placeholder="Organization" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {scenario.orgs.map((org) => (
+                          <SelectItem key={org.id} value={org.id}>
+                            {org.abbreviation ?? org.name}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button type="submit">Add user</Button>
+              </form>
+
+              <form onSubmit={addTask} className="flex flex-col gap-2.5 rounded-xl border border-border/80 bg-card/50 p-4">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="task-title">Task title</Label>
+                  <Input
+                    id="task-title"
+                    value={builderDraft.taskTitle}
+                    onChange={(event) => setBuilderDraft((draft) => ({ ...draft, taskTitle: event.target.value }))}
+                    placeholder="Draft API shell"
+                    autoComplete="off"
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="task-type">Type</Label>
+                  <Input
+                    id="task-type"
+                    value={builderDraft.taskType}
+                    onChange={(event) => setBuilderDraft((draft) => ({ ...draft, taskType: event.target.value }))}
+                    placeholder="task"
+                    autoComplete="off"
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="task-owning-org">Owning org</Label>
+                  <Select
+                    value={builderDraft.taskOwnerOrgId}
+                    onValueChange={(value) => setBuilderDraft((draft) => ({ ...draft, taskOwnerOrgId: value }))}
+                  >
+                    <SelectTrigger id="task-owning-org" className="w-full">
+                      <SelectValue placeholder="Organization" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {scenario.orgs.map((org) => (
+                          <SelectItem key={org.id} value={org.id}>
+                            {org.abbreviation ?? org.name}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="task-parent">Parent task</Label>
+                  <Select
+                    value={builderDraft.taskParentId || SELECT_NONE}
+                    onValueChange={(value) =>
+                      setBuilderDraft((draft) => ({ ...draft, taskParentId: value === SELECT_NONE ? "" : value }))
+                    }
+                  >
+                    <SelectTrigger id="task-parent" className="w-full">
+                      <SelectValue placeholder="No parent" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectItem value={SELECT_NONE}>No parent</SelectItem>
+                        {scenario.tasks.map((task) => (
+                          <SelectItem key={task.id} value={task.id}>
+                            {task.title}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button type="submit">Add task</Button>
+              </form>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="app-panel min-h-0 shadow-md shadow-black/[0.06] ring-border/60" aria-label="Authenticated task view">
           <PanelHeading
             eyebrow="Authenticated view"
             title={currentUser ? currentUser.displayName : "No user selected"}
             detail={currentUser?.title}
           />
-          <div className="task-list">
-            {visibleTasks.map((task) => (
-              <button
-                key={task.id}
-                type="button"
-                className={task.id === selectedTask?.id ? "task-card selected" : "task-card"}
-                onClick={() => setSelectedTaskId(task.id)}
-              >
-                <span className="task-type">{task.type}</span>
-                <strong>{task.title}</strong>
-                <span>{task.status.replace("_", " ")}</span>
-              </button>
-            ))}
-            {visibleTasks.length === 0 ? <p className="empty-state">This user has no visible tasks yet.</p> : null}
-          </div>
-        </section>
+          <CardContent className="pt-0">
+            <div className="flex flex-col gap-2">
+              {visibleTasks.map((task) => (
+                <Button
+                  key={task.id}
+                  type="button"
+                  variant="outline"
+                  className={cn(
+                    "h-auto min-h-[94px] w-full flex-col items-start gap-1.5 py-3 font-normal shadow-none",
+                    task.id === selectedTask?.id && "border-primary bg-accent"
+                  )}
+                  onClick={() => setSelectedTaskId(task.id)}
+                >
+                  <span className="text-[0.76rem] font-black uppercase tracking-wider text-muted-foreground">{task.type}</span>
+                  <strong className="text-base font-semibold">{task.title}</strong>
+                  <span className="text-sm text-muted-foreground">{task.status.replace("_", " ")}</span>
+                </Button>
+              ))}
+              {visibleTasks.length === 0 ? (
+                <p className="text-sm text-muted-foreground">This user has no visible tasks yet.</p>
+              ) : null}
+            </div>
+          </CardContent>
+        </Card>
 
-        <section className="panel config-panel" aria-label="ReBAC configuration">
+        <Card className="config-panel min-h-0 shadow-md shadow-black/[0.06] ring-border/60" aria-label="ReBAC configuration">
           <PanelHeading eyebrow="ReBAC config" title="Relationship edges" />
-          <form onSubmit={addRelationship} className="relationship-form">
-            <EntityPicker
-              label="Subject"
-              scenario={scenario}
-              type={relationshipDraft.subjectType}
-              id={relationshipDraft.subjectId}
-              onTypeChange={(type) =>
-                setRelationshipDraft((draft) => ({
-                  ...draft,
-                  subjectType: type,
-                  subjectId: firstEntityId(scenario, type)
-                }))
-              }
-              onIdChange={(id) => setRelationshipDraft((draft) => ({ ...draft, subjectId: id }))}
-            />
-            <label>
-              Relation
-              <select
-                value={relationshipDraft.relation}
-                onChange={(event) =>
-                  setRelationshipDraft((draft) => ({ ...draft, relation: event.target.value as RelationshipRelation }))
+          <CardContent className="pt-0">
+            <form
+              onSubmit={addRelationship}
+              className="flex flex-col gap-3 lg:grid lg:grid-cols-[1.2fr_minmax(150px,0.7fr)_1.2fr_auto] lg:items-end"
+            >
+              <EntityPicker
+                label="Subject"
+                scenario={scenario}
+                type={relationshipDraft.subjectType}
+                id={relationshipDraft.subjectId}
+                onTypeChange={(type) =>
+                  setRelationshipDraft((draft) => ({
+                    ...draft,
+                    subjectType: type,
+                    subjectId: firstEntityId(scenario, type)
+                  }))
                 }
-              >
-                {RELATIONS.map((relation) => (
-                  <option key={relation} value={relation}>
-                    {relation}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <EntityPicker
-              label="Object"
-              scenario={scenario}
-              type={relationshipDraft.objectType}
-              id={relationshipDraft.objectId}
-              onTypeChange={(type) =>
-                setRelationshipDraft((draft) => ({
-                  ...draft,
-                  objectType: type,
-                  objectId: firstEntityId(scenario, type)
-                }))
-              }
-              onIdChange={(id) => setRelationshipDraft((draft) => ({ ...draft, objectId: id }))}
-            />
-            <button type="submit">Add edge</button>
-          </form>
-          <div className="relationship-list">
-            {scenario.relationships.map((relationship) => (
-              <div key={relationship.id} className="relationship-row">
-                <span>
-                  {getEntityLabel(scenario, { type: relationship.subjectType, id: relationship.subjectId })}{" "}
-                  <strong>{relationship.relation}</strong>{" "}
-                  {getEntityLabel(scenario, { type: relationship.objectType, id: relationship.objectId })}
-                </span>
-                <button type="button" className="ghost" onClick={() => deleteRelationship(relationship)}>
-                  Delete
-                </button>
+                onIdChange={(id) => setRelationshipDraft((draft) => ({ ...draft, subjectId: id }))}
+              />
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="relation-select">Relation</Label>
+                <Select
+                  value={relationshipDraft.relation}
+                  onValueChange={(value) =>
+                    setRelationshipDraft((draft) => ({ ...draft, relation: value as RelationshipRelation }))
+                  }
+                >
+                  <SelectTrigger id="relation-select" className="w-full">
+                    <SelectValue placeholder="Relation" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {RELATIONS.map((relation) => (
+                        <SelectItem key={relation} value={relation}>
+                          {relation}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
               </div>
-            ))}
-          </div>
-        </section>
+              <EntityPicker
+                label="Object"
+                scenario={scenario}
+                type={relationshipDraft.objectType}
+                id={relationshipDraft.objectId}
+                onTypeChange={(type) =>
+                  setRelationshipDraft((draft) => ({
+                    ...draft,
+                    objectType: type,
+                    objectId: firstEntityId(scenario, type)
+                  }))
+                }
+                onIdChange={(id) => setRelationshipDraft((draft) => ({ ...draft, objectId: id }))}
+              />
+              <Button type="submit" className="w-full lg:w-auto">
+                Add edge
+              </Button>
+            </form>
+            <Separator className="my-4" />
+            <ScrollArea className="h-[340px] rounded-xl border border-border/80 pr-3">
+              <div className="flex flex-col gap-2 pb-2">
+                {scenario.relationships.map((relationship) => (
+                  <div
+                    key={relationship.id}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-3 py-2 text-sm"
+                  >
+                    <span className="min-w-0 break-words">
+                      {getEntityLabel(scenario, { type: relationship.subjectType, id: relationship.subjectId })}{" "}
+                      <strong className="font-semibold">{relationship.relation}</strong>{" "}
+                      {getEntityLabel(scenario, { type: relationship.objectType, id: relationship.objectId })}
+                    </span>
+                    <Button type="button" variant="ghost" size="sm" className="shrink-0" onClick={() => deleteRelationship(relationship)}>
+                      Delete
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          </CardContent>
+        </Card>
 
-        <section className="panel inspector-panel" aria-label="Task and authorization inspector">
+        <Card className="inspector-panel min-h-0 shadow-md shadow-black/[0.06] ring-border/60" aria-label="Task and authorization inspector">
           <PanelHeading eyebrow="Inspector" title={selectedTask?.title ?? "No task selected"} detail={selectedTask?.type} />
-          {selectedTask ? (
-            <>
-              <div className="task-detail-grid">
-                <label>
-                  Status
-                  <select value={selectedTask.status} onChange={(event) => updateTaskStatus(selectedTask, event.target.value as TaskStatus)}>
-                    {TASK_STATUSES.map((status) => (
-                      <option key={status} value={status}>
-                        {status.replace("_", " ")}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <div>
-                  <span className="meta-label">Allowed task permissions</span>
-                  <div className="pill-row">
-                    {permissionsForTask.map((permission) => (
-                      <span key={permission} className="pill">
-                        {permission}
-                      </span>
-                    ))}
-                    {permissionsForTask.length === 0 ? <span className="muted">None</span> : null}
+          <CardContent className="pt-0">
+            {selectedTask ? (
+              <>
+                <div className="grid gap-4 md:grid-cols-[190px_1fr] md:items-start">
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="task-status">Status</Label>
+                    <Select value={selectedTask.status} onValueChange={(value) => updateTaskStatus(selectedTask, value as TaskStatus)}>
+                      <SelectTrigger id="task-status" className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          {TASK_STATUSES.map((status) => (
+                            <SelectItem key={status} value={status}>
+                              {status.replace("_", " ")}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <span className="text-[0.76rem] font-black uppercase tracking-wider text-muted-foreground">Allowed task permissions</span>
+                    <div className="flex flex-wrap gap-2">
+                      {permissionsForTask.map((permission) => (
+                        <Badge key={permission} variant="secondary">
+                          {permission}
+                        </Badge>
+                      ))}
+                      {permissionsForTask.length === 0 ? <span className="text-sm text-muted-foreground">None</span> : null}
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="resource-section">
-                <h3>Visible resources</h3>
-                {selectedTaskResources.map((resource) => (
-                  <div key={resource.id} className="resource-row">
-                    <span>{resource.kind}</span>
-                    <strong>{resource.title}</strong>
-                  </div>
-                ))}
-                {selectedTaskResources.length === 0 ? <p className="empty-state">No visible resources for this user.</p> : null}
-              </div>
+                <Separator className="my-4" />
 
-              <div className="decision-card">
-                <label>
-                  Explain permission
-                  <select value={selectedPermission} onChange={(event) => setSelectedPermission(event.target.value as Permission)}>
-                    {PERMISSIONS.map((permission) => (
-                      <option key={permission} value={permission}>
-                        {permission}
-                      </option>
+                <div className="flex flex-col gap-3">
+                  <h3 className="text-base font-semibold tracking-tight">Visible resources</h3>
+                  <div className="flex flex-col gap-2">
+                    {selectedTaskResources.map((resource) => (
+                      <div
+                        key={resource.id}
+                        className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-3 py-2 text-sm"
+                      >
+                        <span className="text-muted-foreground">{resource.kind}</span>
+                        <strong className="font-semibold">{resource.title}</strong>
+                      </div>
                     ))}
-                  </select>
-                </label>
-                {decision ? <DecisionView scenario={scenario} decision={decision} /> : <p className="empty-state">Pick a user and task.</p>}
-              </div>
-            </>
-          ) : (
-            <p className="empty-state">No task exists in this scenario.</p>
-          )}
-        </section>
+                    {selectedTaskResources.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No visible resources for this user.</p>
+                    ) : null}
+                  </div>
+                </div>
 
-        <section className="panel audit-panel" aria-label="Audit log">
+                <Separator className="my-4" />
+
+                <div className="flex flex-col gap-3">
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="explain-permission">Explain permission</Label>
+                    <Select value={selectedPermission} onValueChange={(value) => setSelectedPermission(value as Permission)}>
+                      <SelectTrigger id="explain-permission" className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          {PERMISSIONS.map((permission) => (
+                            <SelectItem key={permission} value={permission}>
+                              {permission}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {decision ? (
+                    <DecisionView scenario={scenario} decision={decision} />
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Pick a user and task.</p>
+                  )}
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">No task exists in this scenario.</p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="audit-panel min-h-0 shadow-md shadow-black/[0.06] ring-border/60" aria-label="Audit log">
           <PanelHeading eyebrow="Audit" title="Append-only history" />
-          {validationIssues.length > 0 ? (
-            <div className="validation-box">
-              {validationIssues.map((issue) => (
-                <p key={issue.message}>{issue.message}</p>
-              ))}
-            </div>
-          ) : null}
-          <div className="audit-list">
-            {scenario.auditEvents.slice(0, 12).map((event) => (
-              <article key={event.id} className="audit-event">
-                <span>{new Date(event.occurredAt).toLocaleString()}</span>
-                <strong>{event.action}</strong>
-                <p>{event.summary}</p>
-              </article>
-            ))}
-          </div>
-        </section>
-      </section>
+          <CardContent className="pt-0">
+            {validationIssues.length > 0 ? (
+              <Alert className="mb-4 border-amber-500/35 bg-amber-50 dark:bg-amber-950/35">
+                <AlertTitle>Validation issues</AlertTitle>
+                <AlertDescription className="flex flex-col gap-1">
+                  {validationIssues.map((issue) => (
+                    <p key={issue.message}>{issue.message}</p>
+                  ))}
+                </AlertDescription>
+              </Alert>
+            ) : null}
+            <ScrollArea className="h-[min(520px,55vh)] rounded-xl border border-border/80 pr-3">
+              <div className="flex flex-col gap-2 pb-2">
+                {scenario.auditEvents.slice(0, 12).map((event) => (
+                  <article key={event.id} className="flex flex-col gap-1 rounded-xl border border-border bg-card px-3 py-2">
+                    <span className="text-[0.76rem] text-muted-foreground">{new Date(event.occurredAt).toLocaleString()}</span>
+                    <strong className="text-sm font-semibold">{event.action}</strong>
+                    <p className="m-0 text-sm text-muted-foreground">{event.summary}</p>
+                  </article>
+                ))}
+              </div>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      </div>
     </main>
   );
 }
 
 function PanelHeading(props: { eyebrow: string; title: string; detail?: string }) {
   return (
-    <div className="panel-heading">
-      <p className="eyebrow">{props.eyebrow}</p>
-      <h2>{props.title}</h2>
-      {props.detail ? <span>{props.detail}</span> : null}
-    </div>
+    <CardHeader className="border-b pb-4">
+      <div className="flex flex-row flex-wrap items-baseline justify-between gap-3">
+        <div className="flex min-w-0 flex-col gap-1">
+          <p className="text-[0.72rem] font-black uppercase tracking-[0.14em] text-primary">{props.eyebrow}</p>
+          <h2 className="font-heading text-base font-medium tracking-tight">{props.title}</h2>
+          {props.detail ? <p className="text-sm text-muted-foreground">{props.detail}</p> : null}
+        </div>
+      </div>
+    </CardHeader>
   );
 }
 
@@ -674,7 +819,7 @@ function OrgTree(props: {
   const rootOrgs = props.scenario.orgs.filter((org) => !org.parentOrgId);
 
   return (
-    <div className="org-tree">
+    <div className="flex flex-col gap-2">
       {rootOrgs.map((org) => (
         <OrgNode key={org.id} orgId={org.id} depth={0} {...props} />
       ))}
@@ -710,25 +855,29 @@ function OrgNode(props: {
   const hasTaskDependency = props.scenario.tasks.some((task) => task.owningOrgId === org.id);
 
   return (
-    <div className="org-node" style={{ marginLeft: props.depth * 14 }}>
-      <div className="org-row">
-        <strong>{org.abbreviation ?? org.name}</strong>
-        <button type="button" className="ghost" disabled={hasTaskDependency} onClick={() => props.onDeleteOrg(org.id)}>
+    <div className="mb-2 flex flex-col gap-1.5" style={{ marginLeft: props.depth * 14 }}>
+      <div className="flex min-h-8 items-center justify-between gap-2 rounded-lg bg-muted px-2 py-1">
+        <strong className="text-sm font-semibold">{org.abbreviation ?? org.name}</strong>
+        <Button type="button" variant="ghost" size="sm" disabled={hasTaskDependency} onClick={() => props.onDeleteOrg(org.id)}>
           Delete
-        </button>
+        </Button>
       </div>
       {users.map((user) => (
-        <div key={user.id} className="user-row">
-          <button
+        <div key={user.id} className="flex items-center justify-between gap-2">
+          <Button
             type="button"
-            className={user.id === props.currentUserId ? "user-button selected" : "user-button"}
+            variant={user.id === props.currentUserId ? "secondary" : "ghost"}
+            className={cn(
+              "h-auto min-h-8 flex-1 justify-start px-3 py-2 text-left font-semibold",
+              user.id === props.currentUserId && "border border-primary"
+            )}
             onClick={() => props.onSelectUser(user)}
           >
             {user.displayName}
-          </button>
-          <button type="button" className="ghost" onClick={() => props.onDeleteUser(user.id)}>
+          </Button>
+          <Button type="button" variant="ghost" size="sm" className="shrink-0" onClick={() => props.onDeleteUser(user.id)}>
             Delete
-          </button>
+          </Button>
         </div>
       ))}
       {children.map((child) => (
@@ -747,29 +896,45 @@ function EntityPicker(props: {
   onIdChange: (id: string) => void;
 }) {
   const options = entityOptions(props.scenario, props.type);
+  const typeId = `${props.label}-entity-type`.toLowerCase().replace(/\s+/g, "-");
+  const entityId = `${props.label}-entity-id`.toLowerCase().replace(/\s+/g, "-");
 
   return (
-    <div className="entity-picker">
-      <label>
-        {props.label} type
-        <select value={props.type} onChange={(event) => props.onTypeChange(event.target.value as EntityType)}>
-          {ENTITY_TYPES.map((type) => (
-            <option key={type} value={type}>
-              {type}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        {props.label}
-        <select value={props.id} onChange={(event) => props.onIdChange(event.target.value)}>
-          {options.map((option) => (
-            <option key={option.id} value={option.id}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-      </label>
+    <div className="flex flex-col gap-3 lg:grid lg:grid-cols-[120px_1fr] lg:gap-3">
+      <div className="flex flex-col gap-2">
+        <Label htmlFor={typeId}>{props.label} type</Label>
+        <Select value={props.type} onValueChange={(value) => props.onTypeChange(value as EntityType)}>
+          <SelectTrigger id={typeId} className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              {ENTITY_TYPES.map((type) => (
+                <SelectItem key={type} value={type}>
+                  {type}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="flex flex-col gap-2">
+        <Label htmlFor={entityId}>{props.label}</Label>
+        <Select value={props.id} onValueChange={props.onIdChange}>
+          <SelectTrigger id={entityId} className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              {options.map((option) => (
+                <SelectItem key={option.id} value={option.id}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+      </div>
     </div>
   );
 }
@@ -778,17 +943,25 @@ function DecisionView(props: { scenario: Scenario; decision: AuthzResult }) {
   const path = formatPathSteps(props.scenario, props.decision.path);
 
   return (
-    <div className={props.decision.allowed ? "decision allowed" : "decision denied"}>
-      <strong>{props.decision.allowed ? "Allowed" : "Denied"}</strong>
-      <p>{props.decision.reason}</p>
-      {path.length > 0 ? (
-        <ol>
-          {path.map((step) => (
-            <li key={step}>{step}</li>
-          ))}
-        </ol>
-      ) : null}
-    </div>
+    <Alert
+      className={cn(
+        props.decision.allowed
+          ? "border-green-600/30 bg-green-50 dark:border-green-500/35 dark:bg-green-950/40"
+          : "border-destructive/35 bg-destructive/5"
+      )}
+    >
+      <AlertTitle>{props.decision.allowed ? "Allowed" : "Denied"}</AlertTitle>
+      <AlertDescription className="flex flex-col gap-3">
+        <p>{props.decision.reason}</p>
+        {path.length > 0 ? (
+          <ol className="m-0 list-decimal pl-5">
+            {path.map((step) => (
+              <li key={step}>{step}</li>
+            ))}
+          </ol>
+        ) : null}
+      </AlertDescription>
+    </Alert>
   );
 }
 
