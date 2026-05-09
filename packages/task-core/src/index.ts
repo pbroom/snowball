@@ -107,8 +107,10 @@ export interface Relationship {
 export type AuditAction =
   | "scenario.created"
   | "identity.created"
+  | "identity.updated"
   | "identity.deleted"
   | "org.created"
+  | "org.updated"
   | "org.deleted"
   | "task.created"
   | "task.updated"

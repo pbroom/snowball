@@ -14,7 +14,8 @@
     "typecheck": "tsc -b",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "perf:rebac-clicks": "bun run --cwd apps/rebac-workbench perf:clicks"
   },
   "dependencies": {
     "lucide-react": "^1.14.0",
@@ -31,6 +32,7 @@
     "@vitejs/plugin-react": "^6.0.1",
     "eslint": "^10.3.0",
     "jsdom": "^29.1.1",
+    "playwright": "^1.59.1",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.59.2",
     "vite": "^8.0.11",
