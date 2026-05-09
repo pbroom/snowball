@@ -1,30 +1,56 @@
 import { LocalAuthorizationService, formatPathSteps, type AuthzResult, type ResourceType } from "@snowball/authz-core";
-import {
-  buildAuditEvent,
-  cloneScenario,
-  loadScenarios,
-  saveScenarios,
-  seedScenario,
-  validateScenario
-} from "@snowball/scenario-store";
+import { saveScenarios, validateScenario } from "@snowball/scenario-store";
 import {
   PERMISSIONS,
   getEntityLabel,
   type EntityType,
+  type Org,
   type Permission,
   type Relationship,
   type RelationshipRelation,
   type Scenario,
-  type Task,
   type TaskStatus,
   type User
 } from "@snowball/task-core";
-import { useMemo, useState, type FormEvent } from "react";
+import { hierarchy, tree as d3Tree, type HierarchyPointLink } from "d3";
+import { HugeiconsIcon } from "@hugeicons/react";
+import {
+  Add01Icon,
+  ArrowRight01Icon,
+  Building02Icon,
+  Delete02Icon,
+  Edit02Icon,
+  MoreHorizontalIcon,
+  UserAdd01Icon
+} from "@hugeicons/core-free-icons";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import {
+  Button as AriaButton,
+  Tree,
+  TreeItem,
+  TreeItemContent,
+  useDragAndDrop,
+  type Selection
+} from "react-aria-components";
+import { useShallow } from "zustand/react/shallow";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuPortal,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -39,6 +65,17 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
+import {
+  entityOptions,
+  firstEntityId,
+  getIdentityMoveTargets,
+  getUserOrgId,
+  parseIdentityKey,
+  selectCurrentScenario,
+  useWorkbenchStore,
+  type PendingDelete,
+  type PendingRename
+} from "@/workbench-store";
 
 const authz = new LocalAuthorizationService();
 
@@ -63,48 +100,96 @@ const TASK_STATUSES: readonly TaskStatus[] = ["open", "in_progress", "blocked", 
 /** Radix Select requires non-empty values; map to "" in state for optional parents. */
 const SELECT_NONE = "__none__";
 
-type EntityOption = {
-  id: string;
-  label: string;
-};
-
-type RelationshipDraft = {
-  subjectType: EntityType;
-  subjectId: string;
-  relation: RelationshipRelation;
-  objectType: EntityType;
-  objectId: string;
-};
-
-type BuilderDraft = {
-  orgName: string;
-  orgParentId: string;
-  userName: string;
-  userOrgId: string;
-  taskTitle: string;
-  taskType: string;
-  taskOwnerOrgId: string;
-  taskParentId: string;
-};
-
 export function App() {
-  const [scenarios, setScenarios] = useState<Scenario[]>(() => loadScenarios());
-  const [selectedScenarioId, setSelectedScenarioId] = useState(() => scenarios[0]?.id ?? seedScenario.id);
-  const scenario = scenarios.find((candidate) => candidate.id === selectedScenarioId) ?? scenarios[0] ?? cloneScenario(seedScenario);
-  const [currentUserId, setCurrentUserId] = useState(() => scenario.users[0]?.id ?? "");
+  const [
+    scenarios,
+    currentUserId,
+    selectedTaskId,
+    selectedPermission,
+    relationshipDraft,
+    builderDraft,
+    saveState,
+    formErrors,
+    pendingDelete,
+    pendingRename,
+    selectedOrgId
+  ] = useWorkbenchStore(
+    useShallow((state) => [
+      state.scenarios,
+      state.currentUserId,
+      state.selectedTaskId,
+      state.selectedPermission,
+      state.relationshipDraft,
+      state.builderDraft,
+      state.saveState,
+      state.formErrors,
+      state.pendingDelete,
+      state.pendingRename,
+      state.selectedOrgId
+    ])
+  );
+  const scenario = useWorkbenchStore(selectCurrentScenario);
+  const [
+    markAutosaved,
+    reconcileSelectedOrg,
+    setSelectedOrgId,
+    setSelectedTaskId,
+    setSelectedPermission,
+    setBuilderDraft,
+    setRelationshipDraft,
+    clearFormError,
+    cancelDelete,
+    cancelRename,
+    updatePendingRename,
+    selectUser,
+    addTask,
+    addRelationship,
+    deleteRelationship,
+    deleteUser,
+    deleteOrg,
+    moveIdentityNode,
+    addOrgFromIdentity,
+    addUserFromIdentity,
+    startRenameIdentity,
+    commitRenameIdentity,
+    updateTaskStatus
+  ] = useWorkbenchStore(
+    useShallow((state) => [
+      state.markAutosaved,
+      state.reconcileSelectedOrg,
+      state.setSelectedOrgId,
+      state.setSelectedTaskId,
+      state.setSelectedPermission,
+      state.setBuilderDraft,
+      state.setRelationshipDraft,
+      state.clearFormError,
+      state.cancelDelete,
+      state.cancelRename,
+      state.updatePendingRename,
+      state.selectUser,
+      state.addTask,
+      state.addRelationship,
+      state.deleteRelationship,
+      state.deleteUser,
+      state.deleteOrg,
+      state.moveIdentityNode,
+      state.addOrgFromIdentity,
+      state.addUserFromIdentity,
+      state.startRenameIdentity,
+      state.commitRenameIdentity,
+      state.updateTaskStatus
+    ])
+  );
   const currentUser = scenario.users.find((user) => user.id === currentUserId) ?? scenario.users[0];
   const effectiveUserId = currentUser?.id ?? "";
   const visibleTasks = useMemo(
     () => (effectiveUserId ? authz.listVisibleTasks({ scenario, userId: effectiveUserId }) : []),
     [effectiveUserId, scenario]
   );
-  const [selectedTaskId, setSelectedTaskId] = useState(() => scenario.tasks[0]?.id ?? "");
   const selectedTask = visibleTasks.find((task) => task.id === selectedTaskId) ?? visibleTasks[0] ?? scenario.tasks[0];
-  const [selectedPermission, setSelectedPermission] = useState<Permission>("task.view");
-  const [relationshipDraft, setRelationshipDraft] = useState<RelationshipDraft>(() => firstRelationshipDraft(scenario));
-  const [builderDraft, setBuilderDraft] = useState<BuilderDraft>(() => firstBuilderDraft(scenario));
-  const [saveState, setSaveState] = useState("Not saved this session");
   const validationIssues = useMemo(() => validateScenario(scenario), [scenario]);
+  const identityTreeItems = useMemo(() => buildIdentityTree(scenario), [scenario]);
+  const highlightedOrgId = selectedOrgId ?? (currentUser ? getUserOrgId(scenario, currentUser) : undefined);
 
   const selectedResourceType: ResourceType = selectedPermission.startsWith("resource.") ? "resource" : "task";
   const selectedResourceId =
@@ -124,383 +209,99 @@ export function App() {
       resourceId: selectedResourceId
     });
   }, [effectiveUserId, scenario, selectedPermission, selectedResourceId, selectedResourceType]);
-  const selectedTaskResources = selectedTask
-    ? authz.listVisibleResources({ scenario, userId: effectiveUserId, taskId: selectedTask.id })
-    : [];
-  const permissionsForTask =
-    selectedTask && effectiveUserId
-      ? authz.listPermissions({ scenario, userId: effectiveUserId, resourceType: "task", resourceId: selectedTask.id })
-      : [];
+  const selectedTaskResources = useMemo(
+    () => (selectedTask ? authz.listVisibleResources({ scenario, userId: effectiveUserId, taskId: selectedTask.id }) : []),
+    [effectiveUserId, scenario, selectedTask]
+  );
+  const permissionsForTask = useMemo(
+    () =>
+      selectedTask && effectiveUserId
+        ? authz.listPermissions({ scenario, userId: effectiveUserId, resourceType: "task", resourceId: selectedTask.id })
+        : [],
+    [effectiveUserId, scenario, selectedTask]
+  );
 
-  function updateScenario(mutator: (draft: Scenario) => void) {
-    setScenarios((current) =>
-      current.map((item) => {
-        if (item.id !== scenario.id) {
-          return item;
-        }
-
-        const draft = cloneScenario(item);
-        mutator(draft);
-        return draft;
-      })
-    );
-    setSaveState("Unsaved changes");
-  }
-
-  function appendAudit(draft: Scenario, summary: string, action: Parameters<typeof buildAuditEvent>[0]["action"], targetType: EntityType, targetId: string) {
-    draft.auditEvents.unshift(
-      buildAuditEvent({
-        action,
-        actorUserId: effectiveUserId || undefined,
-        effectiveUserId: effectiveUserId || undefined,
-        target: { type: targetType, id: targetId },
-        summary
-      })
-    );
-  }
-
-  function selectUser(user: User) {
-    setCurrentUserId(user.id);
-    updateScenario((draft) => {
-      appendAudit(draft, `Workbench switched to ${user.displayName}.`, "user.switched", "user", user.id);
-    });
-  }
-
-  function addOrg(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const name = builderDraft.orgName.trim();
-    if (!name) {
-      return;
-    }
-
-    const id = uniqueId("org", name, scenario.orgs.map((org) => org.id));
-    updateScenario((draft) => {
-      draft.orgs.push({
-        id,
-        name,
-        abbreviation: abbreviation(name),
-        parentOrgId: builderDraft.orgParentId || undefined
-      });
-      if (builderDraft.orgParentId) {
-        draft.relationships.push({
-          id: `rel-${id}-child-of-${builderDraft.orgParentId}`,
-          subjectType: "org",
-          subjectId: id,
-          relation: "child_of",
-          objectType: "org",
-          objectId: builderDraft.orgParentId
-        });
-      }
-      appendAudit(draft, `Created org ${name}.`, "org.created", "org", id);
-    });
-    setBuilderDraft((draft) => ({ ...draft, orgName: "" }));
-  }
-
-  function addUser(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const displayName = builderDraft.userName.trim();
-    if (!displayName || !builderDraft.userOrgId) {
-      return;
-    }
-
-    const id = uniqueId("user", displayName, scenario.users.map((user) => user.id));
-    updateScenario((draft) => {
-      draft.users.push({
-        id,
-        displayName,
-        primaryOrgId: builderDraft.userOrgId
-      });
-      draft.relationships.push({
-        id: `rel-${id}-member-of-${builderDraft.userOrgId}`,
-        subjectType: "user",
-        subjectId: id,
-        relation: "member_of",
-        objectType: "org",
-        objectId: builderDraft.userOrgId
-      });
-      appendAudit(draft, `Created user ${displayName}.`, "identity.created", "user", id);
-    });
-    setBuilderDraft((draft) => ({ ...draft, userName: "" }));
-  }
-
-  function addTask(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const title = builderDraft.taskTitle.trim();
-    const type = builderDraft.taskType.trim() || "task";
-    if (!title || !builderDraft.taskOwnerOrgId || !effectiveUserId) {
-      return;
-    }
-
-    const id = uniqueId("task", title, scenario.tasks.map((task) => task.id));
-    updateScenario((draft) => {
-      const now = new Date().toISOString();
-      draft.tasks.push({
-        id,
-        type,
-        title,
-        parentTaskId: builderDraft.taskParentId || undefined,
-        owningOrgId: builderDraft.taskOwnerOrgId,
-        createdByUserId: effectiveUserId,
-        status: "open",
-        createdAt: now,
-        updatedAt: now
-      });
-      draft.relationships.push({
-        id: `rel-${id}-owned-by-${builderDraft.taskOwnerOrgId}`,
-        subjectType: "task",
-        subjectId: id,
-        relation: "owned_by",
-        objectType: "org",
-        objectId: builderDraft.taskOwnerOrgId
-      });
-      if (builderDraft.taskParentId) {
-        draft.relationships.push({
-          id: `rel-${id}-parent-${builderDraft.taskParentId}`,
-          subjectType: "task",
-          subjectId: id,
-          relation: "parent",
-          objectType: "task",
-          objectId: builderDraft.taskParentId
-        });
-      }
-      appendAudit(draft, `Created task ${title}.`, "task.created", "task", id);
-    });
-    setSelectedTaskId(id);
-    setBuilderDraft((draft) => ({ ...draft, taskTitle: "" }));
-  }
-
-  function addRelationship(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!relationshipDraft.subjectId || !relationshipDraft.objectId) {
-      return;
-    }
-
-    const id = uniqueId(
-      "rel",
-      `${relationshipDraft.subjectId}-${relationshipDraft.relation}-${relationshipDraft.objectId}`,
-      scenario.relationships.map((relationshipItem) => relationshipItem.id)
-    );
-    updateScenario((draft) => {
-      draft.relationships.push({ id, ...relationshipDraft });
-      appendAudit(
-        draft,
-        `Created relationship ${relationshipDraft.subjectId} ${relationshipDraft.relation} ${relationshipDraft.objectId}.`,
-        "relationship.created",
-        relationshipDraft.subjectType,
-        relationshipDraft.subjectId
-      );
-    });
-  }
-
-  function deleteRelationship(relationship: Relationship) {
-    updateScenario((draft) => {
-      draft.relationships = draft.relationships.filter((candidate) => candidate.id !== relationship.id);
-      appendAudit(draft, `Deleted relationship ${relationship.id}.`, "relationship.deleted", relationship.subjectType, relationship.subjectId);
-    });
-  }
-
-  function deleteUser(userId: string) {
-    updateScenario((draft) => {
-      draft.users = draft.users.filter((user) => user.id !== userId);
-      draft.relationships = draft.relationships.filter(
-        (relationshipItem) =>
-          !(relationshipItem.subjectType === "user" && relationshipItem.subjectId === userId) &&
-          !(relationshipItem.objectType === "user" && relationshipItem.objectId === userId)
-      );
-      appendAudit(draft, `Deleted user ${userId}.`, "identity.deleted", "user", userId);
-    });
-    if (currentUserId === userId) {
-      setCurrentUserId(scenario.users.find((user) => user.id !== userId)?.id ?? "");
-    }
-  }
-
-  function deleteOrg(orgId: string) {
-    updateScenario((draft) => {
-      draft.orgs = draft.orgs.filter((org) => org.id !== orgId);
-      draft.relationships = draft.relationships.filter(
-        (relationshipItem) =>
-          !(relationshipItem.subjectType === "org" && relationshipItem.subjectId === orgId) &&
-          !(relationshipItem.objectType === "org" && relationshipItem.objectId === orgId)
-      );
-      for (const org of draft.orgs) {
-        if (org.parentOrgId === orgId) {
-          org.parentOrgId = undefined;
-        }
-      }
-      appendAudit(draft, `Deleted org ${orgId}.`, "org.deleted", "org", orgId);
-    });
-  }
-
-  function updateTaskStatus(task: Task, status: TaskStatus) {
-    updateScenario((draft) => {
-      const editableTask = draft.tasks.find((candidate) => candidate.id === task.id);
-      if (!editableTask) {
-        return;
-      }
-
-      editableTask.status = status;
-      editableTask.updatedAt = new Date().toISOString();
-      appendAudit(draft, `Updated ${task.title} to ${status}.`, "task.updated", "task", task.id);
-    });
-  }
-
-  function saveCurrentScenarios() {
+  useEffect(() => {
     saveScenarios(scenarios);
-    setSaveState(`Saved ${new Date().toLocaleTimeString()}`);
-  }
+    markAutosaved(`Autosaved ${new Date().toLocaleTimeString()}`);
+  }, [markAutosaved, scenarios]);
 
-  function resetSeedScenario() {
-    const fresh = cloneScenario(seedScenario);
-    setScenarios([fresh]);
-    setSelectedScenarioId(fresh.id);
-    setCurrentUserId(fresh.users[0]?.id ?? "");
-    setSelectedTaskId(fresh.tasks[0]?.id ?? "");
-    setRelationshipDraft(firstRelationshipDraft(fresh));
-    setBuilderDraft(firstBuilderDraft(fresh));
-    setSaveState("Reset to seed; save to persist");
-  }
+  useEffect(() => {
+    reconcileSelectedOrg();
+  }, [reconcileSelectedOrg, scenario.orgs]);
 
   return (
-    <main className="min-h-screen bg-muted/30 p-6">
-      <Card className="mb-4 shadow-md shadow-black/[0.06] ring-border/60">
-        <CardContent className="flex flex-col gap-6 pt-6 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex min-w-0 flex-col gap-2">
-            <p className="text-[0.72rem] font-black uppercase tracking-[0.14em] text-primary">Task primitive milestone 1</p>
-            <h1 className="font-heading max-w-[760px] text-[clamp(2rem,4vw,4rem)] font-medium leading-[0.96] tracking-tight">
-              Boring task shell, explainable access graph.
-            </h1>
-            <p className="max-w-[760px] text-base leading-relaxed text-muted-foreground">
-              Build tiny org worlds, switch users instantly, edit relationship edges, and inspect what the current user can see.
-            </p>
+    <main className="min-h-screen bg-muted/30 p-3 sm:p-4 xl:p-6">
+      <header className="mb-3 flex min-w-0 items-center justify-between gap-3 px-1 py-1 text-xs/relaxed text-foreground">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary text-xs font-semibold text-primary-foreground">
+            S
           </div>
-          <div className="flex w-full min-w-[260px] flex-col gap-2.5 sm:w-auto">
-            <ThemeToggle />
-            <Label htmlFor="scenario-select" className="sr-only">
-              Scenario
-            </Label>
-            <Select value={scenario.id} onValueChange={setSelectedScenarioId}>
-              <SelectTrigger id="scenario-select" className="w-full" aria-label="Scenario">
-                <SelectValue placeholder="Scenario" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  {scenarios.map((item) => (
-                    <SelectItem key={item.id} value={item.id}>
-                      {item.name}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-            <Button type="button" onClick={saveCurrentScenarios}>
-              Save
-            </Button>
-            <Button type="button" variant="secondary" onClick={resetSeedScenario}>
-              Reset
-            </Button>
-            <p className="text-sm text-muted-foreground">{saveState}</p>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold">Snowball</p>
+            <p className="truncate text-muted-foreground">{saveState}</p>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+        <div className="flex min-w-0 items-center gap-2">
+          <ThemeToggle variant="icon" />
+        </div>
+      </header>
 
       <div className="workspace-grid">
-        <Card className="identity-panel min-h-0 shadow-md shadow-black/[0.06] ring-border/60" aria-label="Organizations and users">
+        <Card className="identity-panel min-h-0 ring-border/60" aria-label="Organizations and users">
           <PanelHeading eyebrow="Identity graph" title="Orgs and users" />
-          <CardContent className="pt-0">
+          <CardContent className="px-0 pt-0">
             <OrgTree
               scenario={scenario}
+              treeItems={identityTreeItems}
               currentUserId={effectiveUserId}
+              selectedOrgId={selectedOrgId}
+              pendingDelete={pendingDelete}
+              pendingRename={pendingRename}
+              onSelectOrg={setSelectedOrgId}
+              onCancelDelete={cancelDelete}
+              onCancelRename={cancelRename}
+              onRenameValueChange={updatePendingRename}
+              onCommitRename={commitRenameIdentity}
               onSelectUser={selectUser}
+              onAddOrg={addOrgFromIdentity}
+              onAddUser={addUserFromIdentity}
+              onStartRename={startRenameIdentity}
               onDeleteUser={deleteUser}
               onDeleteOrg={deleteOrg}
+              onMoveIdentity={moveIdentityNode}
             />
           </CardContent>
         </Card>
 
-        <Card className="builder-panel min-h-0 shadow-md shadow-black/[0.06] ring-border/60" aria-label="Scenario builders">
+        <Card className="builder-panel min-h-0 ring-border/60" aria-label="Scenario builders">
           <PanelHeading eyebrow="Create" title="Minimal primitives" />
           <CardContent className="pt-0">
-            <div className="grid gap-4 md:grid-cols-3">
-              <form onSubmit={addOrg} className="flex flex-col gap-2.5 rounded-xl border border-border/80 bg-card/50 p-4">
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="org-name">Org name</Label>
-                  <Input
-                    id="org-name"
-                    value={builderDraft.orgName}
-                    onChange={(event) => setBuilderDraft((draft) => ({ ...draft, orgName: event.target.value }))}
-                    placeholder="Policy Team"
-                    autoComplete="off"
-                  />
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="org-parent">Parent org</Label>
-                  <Select
-                    value={builderDraft.orgParentId || SELECT_NONE}
-                    onValueChange={(value) =>
-                      setBuilderDraft((draft) => ({ ...draft, orgParentId: value === SELECT_NONE ? "" : value }))
-                    }
-                  >
-                    <SelectTrigger id="org-parent" className="w-full">
-                      <SelectValue placeholder="No parent" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        <SelectItem value={SELECT_NONE}>No parent</SelectItem>
-                        {scenario.orgs.map((org) => (
-                          <SelectItem key={org.id} value={org.id}>
-                            {org.abbreviation ?? org.name}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Button type="submit">Add org</Button>
-              </form>
+            <div className="grid gap-4 lg:grid-cols-[minmax(260px,0.95fr)_minmax(280px,1.05fr)]">
+              <IdentityOrgChart items={identityTreeItems} currentUserId={effectiveUserId} highlightedOrgId={highlightedOrgId} />
 
-              <form onSubmit={addUser} className="flex flex-col gap-2.5 rounded-xl border border-border/80 bg-card/50 p-4">
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="user-name">User name</Label>
-                  <Input
-                    id="user-name"
-                    value={builderDraft.userName}
-                    onChange={(event) => setBuilderDraft((draft) => ({ ...draft, userName: event.target.value }))}
-                    placeholder="Jordan Smith"
-                    autoComplete="off"
-                  />
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="user-org">Member of</Label>
-                  <Select
-                    value={builderDraft.userOrgId}
-                    onValueChange={(value) => setBuilderDraft((draft) => ({ ...draft, userOrgId: value }))}
-                  >
-                    <SelectTrigger id="user-org" className="w-full">
-                      <SelectValue placeholder="Organization" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        {scenario.orgs.map((org) => (
-                          <SelectItem key={org.id} value={org.id}>
-                            {org.abbreviation ?? org.name}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Button type="submit">Add user</Button>
-              </form>
-
-              <form onSubmit={addTask} className="flex flex-col gap-2.5 rounded-xl border border-border/80 bg-card/50 p-4">
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  addTask();
+                }}
+                className="flex min-w-0 flex-col gap-2.5 border-t border-border/80 pt-3"
+              >
+                <fieldset className="contents">
+                  <legend className="mb-1 text-sm font-semibold">Task</legend>
                 <div className="flex flex-col gap-2">
                   <Label htmlFor="task-title">Task title</Label>
                   <Input
                     id="task-title"
                     value={builderDraft.taskTitle}
-                    onChange={(event) => setBuilderDraft((draft) => ({ ...draft, taskTitle: event.target.value }))}
+                    onChange={(event) => {
+                      setBuilderDraft((draft) => ({ ...draft, taskTitle: event.target.value }));
+                      clearFormError("task");
+                    }}
                     placeholder="Draft API shell"
                     autoComplete="off"
+                    aria-invalid={Boolean(formErrors.task)}
+                    aria-describedby={formErrors.task ? "task-form-error" : undefined}
                   />
                 </div>
                 <div className="flex flex-col gap-2">
@@ -517,7 +318,10 @@ export function App() {
                   <Label htmlFor="task-owning-org">Owning org</Label>
                   <Select
                     value={builderDraft.taskOwnerOrgId}
-                    onValueChange={(value) => setBuilderDraft((draft) => ({ ...draft, taskOwnerOrgId: value }))}
+                    onValueChange={(value) => {
+                      setBuilderDraft((draft) => ({ ...draft, taskOwnerOrgId: value }));
+                      clearFormError("task");
+                    }}
                   >
                     <SelectTrigger id="task-owning-org" className="w-full">
                       <SelectValue placeholder="Organization" />
@@ -556,13 +360,15 @@ export function App() {
                     </SelectContent>
                   </Select>
                 </div>
+                <FormError id="task-form-error" message={formErrors.task} />
                 <Button type="submit">Add task</Button>
+                </fieldset>
               </form>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="app-panel min-h-0 shadow-md shadow-black/[0.06] ring-border/60" aria-label="Authenticated task view">
+        <Card className="app-panel min-h-0 ring-border/60" aria-label="Authenticated task view">
           <PanelHeading
             eyebrow="Authenticated view"
             title={currentUser ? currentUser.displayName : "No user selected"}
@@ -593,12 +399,26 @@ export function App() {
           </CardContent>
         </Card>
 
-        <Card className="config-panel min-h-0 shadow-md shadow-black/[0.06] ring-border/60" aria-label="ReBAC configuration">
-          <PanelHeading eyebrow="ReBAC config" title="Relationship edges" />
+        <Card className="config-panel min-h-0 ring-border/60" aria-label="ReBAC configuration">
+          <PanelHeading
+            eyebrow="ReBAC config"
+            title="Relationship edges"
+            detail="Edges read left to right: a subject gains context through a relation to an object."
+          />
           <CardContent className="pt-0">
+            <Alert className="mb-4 border-primary/25 bg-primary/5">
+              <AlertTitle>How to read an edge</AlertTitle>
+              <AlertDescription>
+                Use relationships to explain access: user member_of org, task owned_by org, resource contained by task. Permission checks follow these
+                links and show the path below.
+              </AlertDescription>
+            </Alert>
             <form
-              onSubmit={addRelationship}
-              className="flex flex-col gap-3 lg:grid lg:grid-cols-[1.2fr_minmax(150px,0.7fr)_1.2fr_auto] lg:items-end"
+              onSubmit={(event) => {
+                event.preventDefault();
+                addRelationship();
+              }}
+              className="flex min-w-0 flex-col gap-3 lg:grid lg:grid-cols-[1.2fr_minmax(150px,0.7fr)_1.2fr_auto] lg:items-end"
             >
               <EntityPicker
                 label="Subject"
@@ -654,30 +474,37 @@ export function App() {
                 Add edge
               </Button>
             </form>
+            <FormError id="relationship-form-error" message={formErrors.relationship} className="mt-3" />
             <Separator className="my-4" />
             <ScrollArea className="h-[340px] rounded-xl border border-border/80 pr-3">
               <div className="flex flex-col gap-2 pb-2">
-                {scenario.relationships.map((relationship) => (
-                  <div
-                    key={relationship.id}
-                    className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-3 py-2 text-sm"
-                  >
-                    <span className="min-w-0 break-words">
-                      {getEntityLabel(scenario, { type: relationship.subjectType, id: relationship.subjectId })}{" "}
-                      <strong className="font-semibold">{relationship.relation}</strong>{" "}
-                      {getEntityLabel(scenario, { type: relationship.objectType, id: relationship.objectId })}
-                    </span>
-                    <Button type="button" variant="ghost" size="sm" className="shrink-0" onClick={() => deleteRelationship(relationship)}>
-                      Delete
-                    </Button>
-                  </div>
-                ))}
+                {scenario.relationships.map((relationship) => {
+                  const label = relationshipLabel(scenario, relationship);
+                  const isPending = pendingDelete?.type === "relationship" && pendingDelete.id === relationship.id;
+
+                  return (
+                    <div
+                      key={relationship.id}
+                      className="flex flex-col gap-2 rounded-xl border border-border bg-card px-3 py-2 text-sm sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <span className="min-w-0 break-words">{label}</span>
+                      <ConfirmingDeleteButton
+                        isPending={isPending}
+                        label={`Delete relationship ${label}`}
+                        pendingLabel="Confirm delete edge"
+                        consequence="Removes this edge from future permission paths."
+                        onCancel={cancelDelete}
+                        onDelete={() => deleteRelationship(relationship)}
+                      />
+                    </div>
+                  );
+                })}
               </div>
             </ScrollArea>
           </CardContent>
         </Card>
 
-        <Card className="inspector-panel min-h-0 shadow-md shadow-black/[0.06] ring-border/60" aria-label="Task and authorization inspector">
+        <Card className="inspector-panel min-h-0 ring-border/60" aria-label="Task and authorization inspector">
           <PanelHeading eyebrow="Inspector" title={selectedTask?.title ?? "No task selected"} detail={selectedTask?.type} />
           <CardContent className="pt-0">
             {selectedTask ? (
@@ -766,11 +593,11 @@ export function App() {
           </CardContent>
         </Card>
 
-        <Card className="audit-panel min-h-0 shadow-md shadow-black/[0.06] ring-border/60" aria-label="Audit log">
+        <Card className="audit-panel min-h-0 ring-border/60" aria-label="Audit log">
           <PanelHeading eyebrow="Audit" title="Append-only history" />
           <CardContent className="pt-0">
             {validationIssues.length > 0 ? (
-              <Alert className="mb-4 border-amber-500/35 bg-amber-50 dark:bg-amber-950/35">
+              <Alert className="mb-4 border-destructive/35 bg-destructive/5">
                 <AlertTitle>Validation issues</AlertTitle>
                 <AlertDescription className="flex flex-col gap-1">
                   {validationIssues.map((issue) => (
@@ -779,12 +606,19 @@ export function App() {
                 </AlertDescription>
               </Alert>
             ) : null}
-            <ScrollArea className="h-[min(520px,55vh)] rounded-xl border border-border/80 pr-3">
-              <div className="flex flex-col gap-2 pb-2">
+            <ScrollArea className="h-[min(520px,55vh)] pr-3">
+              <div className="flex flex-col pb-2">
                 {scenario.auditEvents.slice(0, 12).map((event) => (
-                  <article key={event.id} className="flex flex-col gap-1 rounded-xl border border-border bg-card px-3 py-2">
-                    <span className="text-[0.76rem] text-muted-foreground">{new Date(event.occurredAt).toLocaleString()}</span>
-                    <strong className="text-sm font-semibold">{event.action}</strong>
+                  <article key={event.id} className="flex flex-col gap-1 border-b border-border/60 py-2.5 last:border-b-0">
+                    <div className="flex min-w-0 items-baseline justify-between gap-3">
+                      <strong className="text-sm font-semibold">{event.action}</strong>
+                      <time
+                        className="shrink-0 text-right text-sm text-muted-foreground"
+                        dateTime={event.occurredAt}
+                      >
+                        {new Date(event.occurredAt).toLocaleString()}
+                      </time>
+                    </div>
                     <p className="m-0 text-sm text-muted-foreground">{event.summary}</p>
                   </article>
                 ))}
@@ -802,7 +636,6 @@ function PanelHeading(props: { eyebrow: string; title: string; detail?: string }
     <CardHeader className="border-b pb-4">
       <div className="flex flex-row flex-wrap items-baseline justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-1">
-          <p className="text-[0.72rem] font-black uppercase tracking-[0.14em] text-primary">{props.eyebrow}</p>
           <h2 className="font-heading text-base font-medium tracking-tight">{props.title}</h2>
           {props.detail ? <p className="text-sm text-muted-foreground">{props.detail}</p> : null}
         </div>
@@ -811,81 +644,779 @@ function PanelHeading(props: { eyebrow: string; title: string; detail?: string }
   );
 }
 
-function OrgTree(props: {
-  scenario: Scenario;
-  currentUserId: string;
-  onSelectUser: (user: User) => void;
-  onDeleteUser: (userId: string) => void;
-  onDeleteOrg: (orgId: string) => void;
-}) {
-  const rootOrgs = props.scenario.orgs.filter((org) => !org.parentOrgId);
+function FormError(props: { id: string; message?: string; className?: string }) {
+  if (!props.message) {
+    return null;
+  }
 
   return (
-    <div className="flex flex-col gap-2">
-      {rootOrgs.map((org) => (
-        <OrgNode key={org.id} orgId={org.id} depth={0} {...props} />
-      ))}
+    <p id={props.id} role="alert" className={cn("rounded-md bg-destructive/10 px-2 py-1.5 text-xs text-destructive", props.className)}>
+      {props.message}
+    </p>
+  );
+}
+
+function ConfirmingDeleteButton(props: {
+  isPending: boolean;
+  label: string;
+  pendingLabel: string;
+  consequence: string;
+  disabled?: boolean;
+  onCancel: () => void;
+  onDelete: () => void;
+}) {
+  if (props.isPending) {
+    return (
+      <div className="flex min-w-0 flex-col items-stretch gap-1.5 sm:items-end">
+        <p className="max-w-[18rem] text-xs text-muted-foreground">{props.consequence}</p>
+        <div className="flex flex-wrap gap-1.5">
+          <Button type="button" variant="destructive" size="sm" aria-label={props.pendingLabel} onClick={props.onDelete}>
+            Confirm delete
+          </Button>
+          <Button type="button" variant="ghost" size="sm" onClick={props.onCancel}>
+            Cancel
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <Button type="button" variant="ghost" size="sm" className="shrink-0" aria-label={props.label} disabled={props.disabled} onClick={props.onDelete}>
+      Delete
+    </Button>
+  );
+}
+
+type IdentityTreeNode =
+  | {
+      id: string;
+      type: "org";
+      label: string;
+      depth: number;
+      org: Org;
+      childItems: IdentityTreeNode[];
+    }
+  | {
+      id: string;
+      type: "user";
+      label: string;
+      depth: number;
+      user: User;
+      childItems: IdentityTreeNode[];
+    };
+
+type ParsedIdentityKey = { type: "org" | "user"; id: string };
+
+type ChartNodeDatum = {
+  id: string;
+  type: "root" | "org" | "user";
+  label: string;
+  children?: ChartNodeDatum[];
+};
+
+function identityKey(type: ParsedIdentityKey["type"], id: string): string {
+  return `${type}:${id}`;
+}
+
+function buildIdentityTree(scenario: Scenario): IdentityTreeNode[] {
+  const orgs = uniqueById(scenario.orgs);
+  const users = uniqueById(scenario.users);
+  const visitedOrgIds = new Set<string>();
+  const orgIds = new Set(orgs.map((org) => org.id));
+  const rootOrgs = orgs.filter((org) => !org.parentOrgId || !orgIds.has(org.parentOrgId) || org.parentOrgId === org.id);
+  const startingOrgs = rootOrgs.length > 0 ? rootOrgs : orgs;
+  const tree: IdentityTreeNode[] = [];
+  for (const org of startingOrgs) {
+    if (!visitedOrgIds.has(org.id)) {
+      tree.push(buildOrgTreeNode(scenario, orgs, users, org, visitedOrgIds, new Set(), 0));
+    }
+  }
+  const disconnectedOrgs = orgs
+    .filter((org) => !visitedOrgIds.has(org.id))
+    .map((org) => buildOrgTreeNode(scenario, orgs, users, org, visitedOrgIds, new Set(), 0));
+  const nestedUserIds = new Set(flattenIdentityTree([...tree, ...disconnectedOrgs]).filter((item) => item.type === "user").map((item) => item.user.id));
+  const orphanUsers = users
+    .filter((user) => !nestedUserIds.has(user.id))
+    .map((user) => buildUserTreeNode(user));
+
+  return [...tree, ...disconnectedOrgs, ...orphanUsers];
+}
+
+function buildOrgTreeNode(
+  scenario: Scenario,
+  orgs: Org[],
+  users: User[],
+  org: Org,
+  visitedOrgIds: Set<string>,
+  ancestors: Set<string>,
+  depth: number
+): IdentityTreeNode {
+  visitedOrgIds.add(org.id);
+  const childAncestors = new Set(ancestors).add(org.id);
+  const childOrgs = orgs.filter(
+    (candidate) => candidate.parentOrgId === org.id && !visitedOrgIds.has(candidate.id) && !childAncestors.has(candidate.id)
+  );
+  const childUsers = users.filter((user) => getUserOrgId(scenario, user) === org.id);
+
+  return {
+    id: identityKey("org", org.id),
+    type: "org",
+    label: identityOrgLabel(org),
+    depth,
+    org,
+    childItems: [
+      ...childUsers.map((user) => buildUserTreeNode(user, depth + 1)),
+      ...childOrgs.map((child) => buildOrgTreeNode(scenario, orgs, users, child, visitedOrgIds, childAncestors, depth + 1))
+    ]
+  };
+}
+
+function buildUserTreeNode(user: User, depth = 0): IdentityTreeNode {
+  return {
+    id: identityKey("user", user.id),
+    type: "user",
+    label: user.displayName,
+    depth,
+    user,
+    childItems: []
+  };
+}
+
+function flattenIdentityTree(items: IdentityTreeNode[]): IdentityTreeNode[] {
+  return items.flatMap((item) => [item, ...flattenIdentityTree(item.childItems)]);
+}
+
+function flattenExpandedIdentityTree(items: IdentityTreeNode[], expandedKeys: Set<string>): IdentityTreeNode[] {
+  return items.flatMap((item) => [item, ...(expandedKeys.has(item.id) ? flattenExpandedIdentityTree(item.childItems, expandedKeys) : [])]);
+}
+
+function getExpandableIdentityKeys(items: IdentityTreeNode[]): Set<string> {
+  return new Set(
+    flattenIdentityTree(items)
+      .filter((item) => item.childItems.length > 0)
+      .map((item) => item.id)
+  );
+}
+
+function identityNodeToChartDatum(item: IdentityTreeNode): ChartNodeDatum {
+  return {
+    id: item.id,
+    type: item.type,
+    label: item.label,
+    children: item.childItems.map(identityNodeToChartDatum)
+  };
+}
+
+function chartLinkPath(link: HierarchyPointLink<ChartNodeDatum>): string {
+  const midY = (link.source.y + link.target.y) / 2;
+  return `M${link.source.y},${link.source.x}C${midY},${link.source.x} ${midY},${link.target.x} ${link.target.y},${link.target.x}`;
+}
+
+function isHighlightedChartLink(
+  link: HierarchyPointLink<ChartNodeDatum>,
+  currentUserId: string,
+  highlightedOrgId?: string
+): boolean {
+  const targetId = link.target.data.id;
+  return targetId === identityKey("user", currentUserId) || targetId === identityKey("org", highlightedOrgId ?? "");
+}
+
+function OrgTree(props: {
+  scenario: Scenario;
+  treeItems: IdentityTreeNode[];
+  currentUserId: string;
+  selectedOrgId: string | undefined;
+  pendingDelete: PendingDelete;
+  pendingRename: PendingRename;
+  onSelectOrg: (orgId: string | undefined) => void;
+  onCancelDelete: () => void;
+  onCancelRename: () => void;
+  onRenameValueChange: (value: string) => void;
+  onCommitRename: () => void;
+  onSelectUser: (user: User) => void;
+  onAddOrg: (sourceKey: string) => void;
+  onAddUser: (sourceKey: string) => void;
+  onStartRename: (sourceKey: string) => void;
+  onDeleteUser: (userId: string) => void;
+  onDeleteOrg: (orgId: string) => void;
+  onMoveIdentity: (sourceKey: string, targetOrgId: string | undefined) => void;
+}) {
+  const treeItems = props.treeItems;
+  const flatTreeItems = useMemo(() => flattenIdentityTree(treeItems), [treeItems]);
+  const itemMap = useMemo(() => new Map(flatTreeItems.map((item) => [item.id, item])), [flatTreeItems]);
+  const expandableKeys = useMemo(() => getExpandableIdentityKeys(treeItems), [treeItems]);
+  const previousExpandableKeysRef = useRef<Set<string>>(new Set(expandableKeys));
+  const [expandedKeys, setExpandedKeys] = useState<Set<string>>(() => new Set(expandableKeys));
+  const visibleTreeItems = useMemo(() => flattenExpandedIdentityTree(treeItems, expandedKeys), [expandedKeys, treeItems]);
+  const selectedIdentityKey = props.selectedOrgId
+    ? identityKey("org", props.selectedOrgId)
+    : props.currentUserId
+      ? identityKey("user", props.currentUserId)
+      : undefined;
+
+  useEffect(() => {
+    const previousExpandableKeys = previousExpandableKeysRef.current;
+
+    setExpandedKeys((currentKeys) => {
+      const nextKeys = new Set(Array.from(currentKeys).filter((key) => itemMap.has(key)));
+
+      for (const key of expandableKeys) {
+        if (!previousExpandableKeys.has(key)) {
+          nextKeys.add(key);
+        }
+      }
+
+      if (nextKeys.size === currentKeys.size && Array.from(nextKeys).every((key) => currentKeys.has(key))) {
+        return currentKeys;
+      }
+
+      return nextKeys;
+    });
+    previousExpandableKeysRef.current = new Set(expandableKeys);
+  }, [expandableKeys, itemMap]);
+
+  function toggleExpanded(key: string) {
+    setExpandedKeys((currentKeys) => {
+      const nextKeys = new Set(currentKeys);
+
+      if (nextKeys.has(key)) {
+        nextKeys.delete(key);
+      } else {
+        nextKeys.add(key);
+      }
+
+      return nextKeys;
+    });
+  }
+
+  function handleSelectionChange(selection: Selection) {
+    if (props.pendingRename) {
+      return;
+    }
+
+    if (selection === "all") {
+      return;
+    }
+
+    const key = selection.values().next().value;
+    if (!key) {
+      return;
+    }
+
+    const item = itemMap.get(String(key));
+    if (item?.type === "org") {
+      props.onSelectOrg(item.org.id);
+      return;
+    }
+    if (item?.type === "user") {
+      props.onSelectOrg(undefined);
+      props.onSelectUser(item.user);
+    }
+  }
+
+  const { dragAndDropHooks } = useDragAndDrop({
+    getItems(keys) {
+      if (props.pendingRename) {
+        return [];
+      }
+
+      return Array.from(keys)
+        .map((key) => itemMap.get(String(key)))
+        .filter((item): item is IdentityTreeNode => Boolean(item))
+        .map((item) => ({
+          "application/x-snowball-identity": item.id,
+          "text/plain": item.label
+        }));
+    },
+    onMove(event) {
+      if (props.pendingRename) {
+        return;
+      }
+
+      if (event.target.dropPosition !== "on") {
+        return;
+      }
+      const target = parseIdentityKey(String(event.target.key));
+      if (target?.type !== "org") {
+        return;
+      }
+
+      for (const key of event.keys) {
+        props.onMoveIdentity(String(key), target.id);
+      }
+    },
+    getDropOperation(target) {
+      if (props.pendingRename) {
+        return "cancel";
+      }
+
+      if (target.type === "root") {
+        return "cancel";
+      }
+
+      const targetKey = parseIdentityKey(String(target.key));
+      return target.dropPosition === "on" && targetKey?.type === "org" ? "move" : "cancel";
+    }
+  });
+
+  return (
+    <div className="identity-stack">
+      <Tree
+        aria-label="Organizations and users"
+        className="identity-tree"
+        dependencies={[props.currentUserId, props.pendingDelete, props.pendingRename, expandedKeys]}
+        dragAndDropHooks={dragAndDropHooks}
+        items={visibleTreeItems}
+        onSelectionChange={handleSelectionChange}
+        renderEmptyState={() => <p className="px-2 py-3 text-sm text-muted-foreground">Add an org to begin the identity graph.</p>}
+        selectedKeys={selectedIdentityKey ? new Set([selectedIdentityKey]) : new Set()}
+        selectionBehavior="replace"
+        selectionMode="single"
+      >
+        {(item) => <IdentityTreeItem expandedKeys={expandedKeys} item={item} onToggleExpanded={toggleExpanded} {...props} />}
+      </Tree>
     </div>
   );
 }
 
-function OrgNode(props: {
-  scenario: Scenario;
-  currentUserId: string;
-  orgId: string;
-  depth: number;
-  onSelectUser: (user: User) => void;
-  onDeleteUser: (userId: string) => void;
-  onDeleteOrg: (orgId: string) => void;
-}) {
-  const org = props.scenario.orgs.find((candidate) => candidate.id === props.orgId);
-  if (!org) {
-    return null;
-  }
+function IdentityOrgChart(props: { items: IdentityTreeNode[]; currentUserId: string; highlightedOrgId?: string }) {
+  const descriptionId = useId();
+  const { nodes, links, viewBox, width, height } = useMemo(() => {
+    const rootData: ChartNodeDatum = {
+      id: "root:identity",
+      type: "root",
+      label: "Identity",
+      children: props.items.map(identityNodeToChartDatum)
+    };
+    const root = hierarchy(rootData);
+    const layout = d3Tree<ChartNodeDatum>().nodeSize([30, 82]);
+    const laidOutRoot = layout(root);
+    const allNodes = laidOutRoot.descendants();
+    const minX = Math.min(...allNodes.map((node) => node.x));
+    const maxX = Math.max(...allNodes.map((node) => node.x));
+    const maxY = Math.max(...allNodes.map((node) => node.y));
+    const chartWidth = Math.max(260, maxY + 132);
+    const chartHeight = Math.max(116, maxX - minX + 40);
 
-  const children = props.scenario.orgs.filter((candidate) => candidate.parentOrgId === org.id);
-  const users = props.scenario.users.filter((user) =>
-    props.scenario.relationships.some(
-      (relationship) =>
-        relationship.subjectType === "user" &&
-        relationship.subjectId === user.id &&
-        relationship.relation === "member_of" &&
-        relationship.objectType === "org" &&
-        relationship.objectId === org.id
-    )
-  );
-  const hasTaskDependency = props.scenario.tasks.some((task) => task.owningOrgId === org.id);
+    return {
+      nodes: allNodes,
+      links: laidOutRoot.links(),
+      width: chartWidth,
+      height: chartHeight,
+      viewBox: `-14 ${minX - 20} ${chartWidth} ${chartHeight}`
+    };
+  }, [props.items]);
 
   return (
-    <div className="mb-2 flex flex-col gap-1.5" style={{ marginLeft: props.depth * 14 }}>
-      <div className="flex min-h-8 items-center justify-between gap-2 rounded-lg bg-muted px-2 py-1">
-        <strong className="text-sm font-semibold">{org.abbreviation ?? org.name}</strong>
-        <Button type="button" variant="ghost" size="sm" disabled={hasTaskDependency} onClick={() => props.onDeleteOrg(org.id)}>
-          Delete
+    <figure className="identity-chart" aria-labelledby="identity-chart-title" aria-describedby={descriptionId}>
+      <div className="identity-chart-header">
+        <figcaption id="identity-chart-title">Org structure</figcaption>
+        <span>Drag in the tree to update this map.</span>
+      </div>
+      <svg className="identity-chart-svg" viewBox={viewBox} width={width} height={height} role="img" aria-hidden="true">
+        <g>
+          {links.map((link, index) => (
+            <path
+              key={`${link.source.data.id}-${link.target.data.id}-${index}`}
+              className={cn("identity-chart-link", isHighlightedChartLink(link, props.currentUserId, props.highlightedOrgId) && "is-highlighted")}
+              d={chartLinkPath(link)}
+            />
+          ))}
+        </g>
+        <g>
+          {nodes.map((node, index) => {
+            const isCurrentUser = node.data.id === identityKey("user", props.currentUserId);
+            const isHighlightedOrg = node.data.id === identityKey("org", props.highlightedOrgId ?? "");
+
+            return (
+              <g
+                key={`${node.data.id}-${index}`}
+                className={cn(
+                  "identity-chart-node",
+                  `identity-chart-node-${node.data.type}`,
+                  isCurrentUser && "is-current-user",
+                  isHighlightedOrg && "is-highlighted-org"
+                )}
+                transform={`translate(${node.y},${node.x})`}
+              >
+                <circle r={node.data.type === "root" ? 4 : 5} />
+                <text x={9} dy="0.32em">
+                  {node.data.label}
+                </text>
+              </g>
+            );
+          })}
+        </g>
+      </svg>
+      <p id={descriptionId} className="sr-only">
+        Organization chart showing parent and child orgs plus user membership. The selected current user and related org are highlighted. Use the
+        organizations and users tree below for keyboard selection, deletion, and drag and drop.
+      </p>
+    </figure>
+  );
+}
+
+function IdentityTreeItem(props: {
+  scenario: Scenario;
+  currentUserId: string;
+  pendingDelete: PendingDelete;
+  pendingRename: PendingRename;
+  onCancelDelete: () => void;
+  onCancelRename: () => void;
+  onRenameValueChange: (value: string) => void;
+  onCommitRename: () => void;
+  item: IdentityTreeNode;
+  onSelectUser: (user: User) => void;
+  onAddOrg: (sourceKey: string) => void;
+  onAddUser: (sourceKey: string) => void;
+  onStartRename: (sourceKey: string) => void;
+  onDeleteUser: (userId: string) => void;
+  onDeleteOrg: (orgId: string) => void;
+  onMoveIdentity: (sourceKey: string, targetOrgId: string | undefined) => void;
+  expandedKeys: Set<string>;
+  onToggleExpanded: (sourceKey: string) => void;
+}) {
+  const item = props.item;
+  const org = item.type === "org" ? item.org : undefined;
+  const user = item.type === "user" ? item.user : undefined;
+  const isCurrentUser = user?.id === props.currentUserId;
+  const hasChildItems = item.childItems.length > 0;
+  const isExpanded = props.expandedKeys.has(item.id);
+  const hasTaskDependency = Boolean(org && props.scenario.tasks.some((task) => task.owningOrgId === org.id));
+  const isPending =
+    org
+      ? props.pendingDelete?.type === "org" && props.pendingDelete.id === org.id
+      : Boolean(user && props.pendingDelete?.type === "user" && props.pendingDelete.id === user.id);
+  const rename = props.pendingRename?.type === item.type && props.pendingRename.id === (org?.id ?? user?.id) ? props.pendingRename : undefined;
+  const moveTargets = getIdentityMoveTargets(props.scenario, item);
+
+  function handleTreeItemKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    if (!hasChildItems || props.pendingRename || event.defaultPrevented) {
+      return;
+    }
+
+    if (event.key === "ArrowRight" && !isExpanded) {
+      event.preventDefault();
+      props.onToggleExpanded(item.id);
+      return;
+    }
+
+    if (event.key === "ArrowLeft" && isExpanded) {
+      event.preventDefault();
+      props.onToggleExpanded(item.id);
+    }
+  }
+
+  function handleTreeItemClickCapture(event: React.MouseEvent<HTMLDivElement>) {
+    if (!hasChildItems) {
+      return;
+    }
+
+    const target = event.target instanceof Element ? event.target.closest(".identity-tree-disclosure") : null;
+    if (!target) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    props.onToggleExpanded(item.id);
+  }
+
+  return (
+    <TreeItem
+      id={item.id}
+      textValue={props.pendingRename ? "_" : item.label}
+      className="identity-tree-item"
+      aria-expanded={hasChildItems ? isExpanded : undefined}
+    >
+      <TreeItemContent>
+        {({ allowsDragging }) => (
+          <div
+            className={cn("identity-tree-item-content", org && "identity-tree-item-content-org", isCurrentUser && "is-current-user")}
+            style={{ "--identity-tree-depth": item.depth } as React.CSSProperties}
+            onClickCapture={handleTreeItemClickCapture}
+            onKeyDown={handleTreeItemKeyDown}
+          >
+            {allowsDragging ? (
+              <AriaButton slot="drag" className="identity-tree-hidden-action" aria-label={`Move ${item.label}`} isDisabled={Boolean(rename)}>
+                Move {item.label}
+              </AriaButton>
+            ) : null}
+            <div className="identity-tree-row-main">
+              {hasChildItems ? (
+                <span className="identity-tree-disclosure-control">
+                  <button
+                    type="button"
+                    draggable={false}
+                    className="identity-tree-disclosure"
+                    aria-expanded={isExpanded}
+                    aria-label={`${isExpanded ? "Collapse" : "Expand"} ${item.label}`}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      props.onToggleExpanded(item.id);
+                    }}
+                    onDragStart={(event) => event.preventDefault()}
+                    onMouseDown={(event) => event.stopPropagation()}
+                    onPointerDown={(event) => event.stopPropagation()}
+                  >
+                    <HugeiconsIcon icon={ArrowRight01Icon} strokeWidth={2} aria-hidden />
+                  </button>
+                </span>
+              ) : (
+                <span className="identity-tree-disclosure-spacer" aria-hidden="true" />
+              )}
+              {rename ? (
+                <IdentityRenameEditor
+                  label={item.label}
+                  value={rename.value}
+                  onValueChange={props.onRenameValueChange}
+                  onCancel={props.onCancelRename}
+                  onCommit={props.onCommitRename}
+                />
+              ) : (
+                <div className="identity-tree-label">
+                  <span className={cn("identity-tree-title", org ? "font-semibold" : "font-medium")}>{item.label}</span>
+                  <span className="identity-tree-meta">
+                    {org
+                      ? `${item.childItems.length} ${item.childItems.length === 1 ? "entry" : "entries"}`
+                      : isCurrentUser
+                        ? "Current actor"
+                        : user?.title ?? "User"}
+                  </span>
+                </div>
+              )}
+            </div>
+            <div className="identity-tree-actions" onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
+              {isPending ? (
+                <ConfirmingDeleteButton
+                  isPending
+                  label={org ? `Delete org ${org.name}` : `Delete user ${user?.displayName ?? item.label}`}
+                  pendingLabel={org ? "Confirm delete org" : "Confirm delete user"}
+                  consequence={
+                    org
+                      ? hasTaskDependency
+                        ? "This org owns tasks, so remove or reassign those tasks before deleting."
+                        : "Deletes this org and removes relationships that point to it."
+                      : "Deletes this user and removes relationships connected to them."
+                  }
+                  disabled={hasTaskDependency}
+                  onCancel={props.onCancelDelete}
+                  onDelete={() => {
+                    if (org) {
+                      props.onDeleteOrg(org.id);
+                      return;
+                    }
+                    if (user) {
+                      props.onDeleteUser(user.id);
+                    }
+                  }}
+                />
+              ) : (
+                <IdentityRowActions
+                  item={item}
+                  moveTargets={moveTargets}
+                  disableDelete={hasTaskDependency}
+                  onAddOrg={() => props.onAddOrg(item.id)}
+                  onAddUser={() => props.onAddUser(item.id)}
+                  onStartRename={() => props.onStartRename(item.id)}
+                  onMove={(targetOrgId) => props.onMoveIdentity(item.id, targetOrgId)}
+                  onStartDelete={() => {
+                    if (org) {
+                      props.onDeleteOrg(org.id);
+                      return;
+                    }
+                    if (user) {
+                      props.onDeleteUser(user.id);
+                    }
+                  }}
+                />
+              )}
+            </div>
+          </div>
+        )}
+      </TreeItemContent>
+    </TreeItem>
+  );
+}
+
+function IdentityRenameEditor(props: {
+  label: string;
+  value: string;
+  onValueChange: (value: string) => void;
+  onCancel: () => void;
+  onCommit: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const handledSpaceKeyRef = useRef(false);
+
+  useEffect(() => {
+    const input = inputRef.current;
+    if (!input) {
+      return;
+    }
+    const inputElement: HTMLInputElement = input;
+
+    let isCancelled = false;
+    let focusTimeout = 0;
+    let attempts = 0;
+
+    function focusInput() {
+      if (isCancelled) {
+        return;
+      }
+
+      inputElement.focus({ preventScroll: true });
+      inputElement.select();
+      attempts += 1;
+
+      if (document.activeElement !== inputElement && attempts < 5) {
+        focusTimeout = window.setTimeout(focusInput, 20);
+      }
+    }
+
+    focusTimeout = window.setTimeout(focusInput, 0);
+
+    return () => {
+      isCancelled = true;
+      window.clearTimeout(focusTimeout);
+    };
+  }, [props.label]);
+
+  function stopTreeInteraction(event: { stopPropagation: () => void }) {
+    event.stopPropagation();
+  }
+
+  function insertTextAtSelection(input: HTMLInputElement, text: string) {
+    const start = input.selectionStart ?? input.value.length;
+    const end = input.selectionEnd ?? start;
+    const nextValue = `${input.value.slice(0, start)}${text}${input.value.slice(end)}`;
+    const nextCursor = start + text.length;
+
+    props.onValueChange(nextValue);
+    requestAnimationFrame(() => input.setSelectionRange(nextCursor, nextCursor));
+  }
+
+  return (
+    <form
+      className="identity-rename-form"
+      onClickCapture={stopTreeInteraction}
+      onDragStartCapture={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+      }}
+      onMouseDownCapture={stopTreeInteraction}
+      onPointerDownCapture={stopTreeInteraction}
+      onSubmit={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        props.onCommit();
+      }}
+    >
+      <Input
+        ref={inputRef}
+        aria-label={`Rename ${props.label}`}
+        autoFocus
+        className="h-7"
+        value={props.value}
+        onChange={(event) => props.onValueChange(event.target.value)}
+        onKeyDownCapture={(event) => {
+          event.stopPropagation();
+          if (event.key === "Escape") {
+            event.preventDefault();
+            props.onCancel();
+            return;
+          }
+          if (event.key === " ") {
+            event.preventDefault();
+            handledSpaceKeyRef.current = true;
+            insertTextAtSelection(event.currentTarget, " ");
+          }
+        }}
+        onKeyUpCapture={(event) => {
+          event.stopPropagation();
+          if (event.key !== " ") {
+            return;
+          }
+
+          if (!handledSpaceKeyRef.current) {
+            insertTextAtSelection(event.currentTarget, " ");
+          }
+          handledSpaceKeyRef.current = false;
+        }}
+      />
+      <div className="flex shrink-0 gap-1">
+        <Button type="submit" size="sm">
+          Save
+        </Button>
+        <Button type="button" variant="ghost" size="sm" onClick={props.onCancel}>
+          Cancel
         </Button>
       </div>
-      {users.map((user) => (
-        <div key={user.id} className="flex items-center justify-between gap-2">
-          <Button
-            type="button"
-            variant={user.id === props.currentUserId ? "secondary" : "ghost"}
-            className={cn(
-              "h-auto min-h-8 flex-1 justify-start px-3 py-2 text-left font-semibold",
-              user.id === props.currentUserId && "border border-primary"
-            )}
-            onClick={() => props.onSelectUser(user)}
-          >
-            {user.displayName}
-          </Button>
-          <Button type="button" variant="ghost" size="sm" className="shrink-0" onClick={() => props.onDeleteUser(user.id)}>
-            Delete
-          </Button>
-        </div>
-      ))}
-      {children.map((child) => (
-        <OrgNode key={child.id} {...props} orgId={child.id} depth={props.depth + 1} />
-      ))}
-    </div>
+    </form>
+  );
+}
+
+function IdentityRowActions(props: {
+  item: IdentityTreeNode;
+  moveTargets: Org[];
+  disableDelete: boolean;
+  onAddOrg: () => void;
+  onAddUser: () => void;
+  onStartRename: () => void;
+  onMove: (targetOrgId: string) => void;
+  onStartDelete: () => void;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button type="button" variant="ghost" size="icon-sm" aria-label={`Open actions for ${props.item.label}`}>
+          <HugeiconsIcon icon={MoreHorizontalIcon} strokeWidth={2} aria-hidden />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-44">
+        <DropdownMenuLabel>{props.item.label}</DropdownMenuLabel>
+        <DropdownMenuGroup>
+          <DropdownMenuItem onSelect={props.onAddOrg}>
+            <HugeiconsIcon icon={Building02Icon} strokeWidth={2} aria-hidden />
+            Add org
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={props.onAddUser}>
+            <HugeiconsIcon icon={UserAdd01Icon} strokeWidth={2} aria-hidden />
+            Add user
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={props.onStartRename}>
+            <HugeiconsIcon icon={Edit02Icon} strokeWidth={2} aria-hidden />
+            Rename
+          </DropdownMenuItem>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <HugeiconsIcon icon={Add01Icon} strokeWidth={2} aria-hidden />
+              Move to
+            </DropdownMenuSubTrigger>
+            <DropdownMenuPortal>
+              <DropdownMenuSubContent className="max-h-64 min-w-44 overflow-y-auto">
+                {props.moveTargets.length > 0 ? (
+                  props.moveTargets.map((org) => (
+                    <DropdownMenuItem key={org.id} onSelect={() => props.onMove(org.id)}>
+                      {org.abbreviation ?? org.name}
+                    </DropdownMenuItem>
+                  ))
+                ) : (
+                  <DropdownMenuItem disabled>No available orgs</DropdownMenuItem>
+                )}
+              </DropdownMenuSubContent>
+            </DropdownMenuPortal>
+          </DropdownMenuSub>
+        </DropdownMenuGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem variant="destructive" disabled={props.disableDelete} onSelect={props.onStartDelete}>
+          <HugeiconsIcon icon={Delete02Icon} strokeWidth={2} aria-hidden />
+          Delete
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -902,7 +1433,7 @@ function EntityPicker(props: {
   const entityId = `${props.label}-entity-id`.toLowerCase().replace(/\s+/g, "-");
 
   return (
-    <div className="flex flex-col gap-3 lg:grid lg:grid-cols-[120px_1fr] lg:gap-3">
+    <div className="flex min-w-0 flex-col gap-3 lg:grid lg:grid-cols-[120px_1fr] lg:gap-3">
       <div className="flex flex-col gap-2">
         <Label htmlFor={typeId}>{props.label} type</Label>
         <Select value={props.type} onValueChange={(value) => props.onTypeChange(value as EntityType)}>
@@ -948,11 +1479,11 @@ function DecisionView(props: { scenario: Scenario; decision: AuthzResult }) {
     <Alert
       className={cn(
         props.decision.allowed
-          ? "border-green-600/30 bg-green-50 dark:border-green-500/35 dark:bg-green-950/40"
+          ? "border-primary/35 bg-primary/5"
           : "border-destructive/35 bg-destructive/5"
       )}
     >
-      <AlertTitle>{props.decision.allowed ? "Allowed" : "Denied"}</AlertTitle>
+      <AlertTitle>{props.decision.allowed ? "Allowed by relationship path" : "Denied, no valid path"}</AlertTitle>
       <AlertDescription className="flex flex-col gap-3">
         <p>{props.decision.reason}</p>
         {path.length > 0 ? (
@@ -967,73 +1498,24 @@ function DecisionView(props: { scenario: Scenario; decision: AuthzResult }) {
   );
 }
 
-function firstRelationshipDraft(scenario: Scenario): RelationshipDraft {
-  return {
-    subjectType: "task",
-    subjectId: firstEntityId(scenario, "task"),
-    relation: "viewer",
-    objectType: "user",
-    objectId: firstEntityId(scenario, "user")
-  };
+function relationshipLabel(scenario: Scenario, relationship: Relationship): string {
+  return `${getEntityLabel(scenario, { type: relationship.subjectType, id: relationship.subjectId })} ${relationship.relation} ${getEntityLabel(scenario, {
+    type: relationship.objectType,
+    id: relationship.objectId
+  })}`;
 }
 
-function firstBuilderDraft(scenario: Scenario): BuilderDraft {
-  return {
-    orgName: "",
-    orgParentId: scenario.orgs[0]?.id ?? "",
-    userName: "",
-    userOrgId: scenario.orgs[0]?.id ?? "",
-    taskTitle: "",
-    taskType: "task",
-    taskOwnerOrgId: scenario.orgs[0]?.id ?? "",
-    taskParentId: ""
-  };
-}
-
-function firstEntityId(scenario: Scenario, type: EntityType): string {
-  return entityOptions(scenario, type)[0]?.id ?? "";
-}
-
-function entityOptions(scenario: Scenario, type: EntityType): EntityOption[] {
-  switch (type) {
-    case "user":
-      return scenario.users.map((user) => ({ id: user.id, label: user.displayName }));
-    case "org":
-      return scenario.orgs.map((org) => ({ id: org.id, label: org.abbreviation ?? org.name }));
-    case "group":
-      return scenario.groups.map((group) => ({ id: group.id, label: group.name }));
-    case "task":
-      return scenario.tasks.map((task) => ({ id: task.id, label: task.title }));
-    case "resource":
-      return scenario.resources.map((resource) => ({ id: resource.id, label: resource.title }));
-    default: {
-      const _exhaustive: never = type;
-      return _exhaustive;
+function uniqueById<T extends { id: string }>(items: T[]): T[] {
+  const seen = new Set<string>();
+  return items.filter((item) => {
+    if (seen.has(item.id)) {
+      return false;
     }
-  }
+    seen.add(item.id);
+    return true;
+  });
 }
 
-function uniqueId(prefix: string, label: string, existingIds: string[]): string {
-  const base = `${prefix}-${label
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")}`;
-  let candidate = base || `${prefix}-${crypto.randomUUID()}`;
-  let index = 2;
-
-  while (existingIds.includes(candidate)) {
-    candidate = `${base}-${index}`;
-    index += 1;
-  }
-
-  return candidate;
-}
-
-function abbreviation(name: string): string {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 3)
-    .map((part) => part[0]?.toUpperCase() ?? "")
-    .join("");
+function identityOrgLabel(org: Org): string {
+  return org.abbreviation === "ROOT" ? org.abbreviation : org.name;
 }

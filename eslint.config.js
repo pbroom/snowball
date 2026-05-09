@@ -18,5 +18,11 @@ export default tseslint.config(
     rules: {
       "no-undef": "off"
     }
+  },
+  {
+    files: ["**/*.mjs"],
+    rules: {
+      "no-undef": "off"
+    }
   }
 );

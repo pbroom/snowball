@@ -6,6 +6,7 @@ import {
   isResourcePermission,
   isTaskPermission,
   type EntityRef,
+  type EntityType,
   type Permission,
   type Relationship,
   type RelationshipRelation,
@@ -82,7 +83,21 @@ interface RestrictionMatch {
   path: AuthzPathStep[];
 }
 
+interface ScenarioAuthzIndex {
+  tasksById: Map<string, Task>;
+  orgParentByChild: Map<string, Relationship>;
+  orgsById: Map<string, { parentOrgId?: string }>;
+  resourcesById: Map<string, TaskResource>;
+  resourcesByTaskId: Map<string, TaskResource[]>;
+  relationshipsBySubjectRelation: Map<string, Relationship[]>;
+  relationshipsBySubjectRelationObjectType: Map<string, Relationship[]>;
+  userGroupMemberships: Map<string, Relationship[]>;
+  userOrgMemberships: Map<string, Relationship[]>;
+}
+
 export class LocalAuthorizationService implements AuthorizationService {
+  private readonly indexes = new WeakMap<Scenario, ScenarioAuthzIndex>();
+
   check(input: AuthzCheckInput): AuthzResult {
     return this.explain(input);
   }
@@ -93,7 +108,8 @@ export class LocalAuthorizationService implements AuthorizationService {
         return deny(input, `${input.permission} cannot be checked against a task.`);
       }
 
-      const task = input.scenario.tasks.find((candidate) => candidate.id === input.resourceId);
+      const index = this.indexFor(input.scenario);
+      const task = index.tasksById.get(input.resourceId);
       if (!task) {
         return deny(input, `Task ${input.resourceId} was not found in this scenario.`);
       }
@@ -106,12 +122,13 @@ export class LocalAuthorizationService implements AuthorizationService {
       return deny(input, `${input.permission} cannot be checked against a resource.`);
     }
 
-    const resource = input.scenario.resources.find((candidate) => candidate.id === input.resourceId);
+    const index = this.indexFor(input.scenario);
+    const resource = index.resourcesById.get(input.resourceId);
     if (!resource) {
       return deny(input, `Resource ${input.resourceId} was not found in this scenario.`);
     }
 
-    const task = input.scenario.tasks.find((candidate) => candidate.id === resource.taskId);
+    const task = index.tasksById.get(resource.taskId);
     if (!task) {
       return deny(input, `Resource ${resource.id} belongs to missing task ${resource.taskId}.`);
     }
@@ -146,17 +163,63 @@ export class LocalAuthorizationService implements AuthorizationService {
   }
 
   listVisibleResources(input: VisibleResourcesInput): TaskResource[] {
-    return input.scenario.resources.filter(
-      (resource) =>
-        resource.taskId === input.taskId &&
-        this.check({
-          scenario: input.scenario,
-          userId: input.userId,
-          permission: "resource.view",
-          resourceType: "resource",
-          resourceId: resource.id
-        }).allowed
+    const resources = this.indexFor(input.scenario).resourcesByTaskId.get(input.taskId) ?? [];
+    return resources.filter((resource) =>
+      this.check({
+        scenario: input.scenario,
+        userId: input.userId,
+        permission: "resource.view",
+        resourceType: "resource",
+        resourceId: resource.id
+      }).allowed
     );
+  }
+
+  private indexFor(scenario: Scenario): ScenarioAuthzIndex {
+    const cached = this.indexes.get(scenario);
+    if (cached) {
+      return cached;
+    }
+
+    const index: ScenarioAuthzIndex = {
+      tasksById: new Map(scenario.tasks.map((task) => [task.id, task])),
+      orgParentByChild: new Map(),
+      orgsById: new Map(scenario.orgs.map((org) => [org.id, org])),
+      resourcesById: new Map(scenario.resources.map((resource) => [resource.id, resource])),
+      resourcesByTaskId: new Map(),
+      relationshipsBySubjectRelation: new Map(),
+      relationshipsBySubjectRelationObjectType: new Map(),
+      userGroupMemberships: new Map(),
+      userOrgMemberships: new Map()
+    };
+
+    for (const resource of scenario.resources) {
+      appendToMap(index.resourcesByTaskId, resource.taskId, resource);
+    }
+
+    for (const relationship of scenario.relationships) {
+      appendToMap(index.relationshipsBySubjectRelation, subjectRelationKey(relationship, relationship.relation), relationship);
+      appendToMap(
+        index.relationshipsBySubjectRelationObjectType,
+        subjectRelationObjectTypeKey(relationship, relationship.relation, relationship.objectType),
+        relationship
+      );
+
+      if (relationship.subjectType === "user" && relationship.relation === "member_of") {
+        if (relationship.objectType === "org") {
+          appendToMap(index.userOrgMemberships, relationship.subjectId, relationship);
+        } else if (relationship.objectType === "group") {
+          appendToMap(index.userGroupMemberships, relationship.subjectId, relationship);
+        }
+      }
+
+      if (relationship.subjectType === "org" && relationship.relation === "child_of" && relationship.objectType === "org") {
+        index.orgParentByChild.set(relationship.subjectId, relationship);
+      }
+    }
+
+    this.indexes.set(scenario, index);
+    return index;
   }
 
   private evaluateTaskPermission(
@@ -272,15 +335,9 @@ export class LocalAuthorizationService implements AuthorizationService {
     relations: RelationshipRelation[],
     permission: Permission
   ): RuleMatch | undefined {
+    const index = this.indexFor(scenario);
     for (const relation of relations) {
-      const directUserGrant = scenario.relationships.find(
-        (candidate) =>
-          candidate.subjectType === resource.type &&
-          candidate.subjectId === resource.id &&
-          candidate.relation === relation &&
-          candidate.objectType === "user" &&
-          candidate.objectId === userId
-      );
+      const directUserGrant = this.subjectRelationships(index, resource, relation, "user").find((candidate) => candidate.objectId === userId);
 
       if (directUserGrant) {
         return {
@@ -290,13 +347,7 @@ export class LocalAuthorizationService implements AuthorizationService {
         };
       }
 
-      const groupGrants = scenario.relationships.filter(
-        (candidate) =>
-          candidate.subjectType === resource.type &&
-          candidate.subjectId === resource.id &&
-          candidate.relation === relation &&
-          candidate.objectType === "group"
-      );
+      const groupGrants = this.subjectRelationships(index, resource, relation, "group");
 
       for (const groupGrant of groupGrants) {
         const groupPath = this.userInGroupPath(scenario, userId, groupGrant.objectId);
@@ -309,13 +360,7 @@ export class LocalAuthorizationService implements AuthorizationService {
         }
       }
 
-      const orgGrants = scenario.relationships.filter(
-        (candidate) =>
-          candidate.subjectType === resource.type &&
-          candidate.subjectId === resource.id &&
-          candidate.relation === relation &&
-          candidate.objectType === "org"
-      );
+      const orgGrants = this.subjectRelationships(index, resource, relation, "org");
 
       for (const orgGrant of orgGrants) {
         const orgPath = this.userInOrgPath(scenario, userId, orgGrant.objectId);
@@ -330,6 +375,19 @@ export class LocalAuthorizationService implements AuthorizationService {
     }
 
     return undefined;
+  }
+
+  private subjectRelationships(
+    index: ScenarioAuthzIndex,
+    subject: EntityRef,
+    relation: RelationshipRelation,
+    objectType?: EntityType
+  ): Relationship[] {
+    if (objectType) {
+      return index.relationshipsBySubjectRelationObjectType.get(subjectRelationObjectTypeKey(subject, relation, objectType)) ?? [];
+    }
+
+    return index.relationshipsBySubjectRelation.get(subjectRelationKey(subject, relation)) ?? [];
   }
 
   private taskOrgRule(
@@ -429,12 +487,7 @@ export class LocalAuthorizationService implements AuthorizationService {
   }
 
   private resourceRestrictionRule(scenario: Scenario, userId: string, resource: TaskResource): RestrictionMatch {
-    const restrictions = scenario.relationships.filter(
-      (candidate) =>
-        candidate.subjectType === "resource" &&
-        candidate.subjectId === resource.id &&
-        candidate.relation === "restricted_to"
-    );
+    const restrictions = this.subjectRelationships(this.indexFor(scenario), { type: "resource", id: resource.id }, "restricted_to");
 
     if (restrictions.length === 0) {
       return { allowed: true, reason: "The resource has no explicit restriction.", path: [] };
@@ -459,13 +512,7 @@ export class LocalAuthorizationService implements AuthorizationService {
     task: Task,
     relation: "owned_by" | "assigned_to"
   ): Relationship[] {
-    const relationships = scenario.relationships.filter(
-      (candidate) =>
-        candidate.subjectType === "task" &&
-        candidate.subjectId === task.id &&
-        candidate.relation === relation &&
-        candidate.objectType === "org"
-    );
+    const relationships = this.subjectRelationships(this.indexFor(scenario), { type: "task", id: task.id }, relation, "org");
 
     if (relation === "owned_by" && relationships.length === 0) {
       return [
@@ -506,26 +553,13 @@ export class LocalAuthorizationService implements AuthorizationService {
   }
 
   private userInGroupPath(scenario: Scenario, userId: string, groupId: string): AuthzPathStep[] | undefined {
-    const relationship = scenario.relationships.find(
-      (candidate) =>
-        candidate.subjectType === "user" &&
-        candidate.subjectId === userId &&
-        candidate.relation === "member_of" &&
-        candidate.objectType === "group" &&
-        candidate.objectId === groupId
-    );
+    const relationship = this.indexFor(scenario).userGroupMemberships.get(userId)?.find((candidate) => candidate.objectId === groupId);
 
     return relationship ? [stepFromRelationship(relationship)] : undefined;
   }
 
   private userInOrgPath(scenario: Scenario, userId: string, targetOrgId: string): AuthzPathStep[] | undefined {
-    const directMemberships = scenario.relationships.filter(
-      (candidate) =>
-        candidate.subjectType === "user" &&
-        candidate.subjectId === userId &&
-        candidate.relation === "member_of" &&
-        candidate.objectType === "org"
-    );
+    const directMemberships = this.indexFor(scenario).userOrgMemberships.get(userId) ?? [];
 
     for (const membership of directMemberships) {
       if (membership.objectId === targetOrgId) {
@@ -565,26 +599,21 @@ export class LocalAuthorizationService implements AuthorizationService {
   }
 
   private orgParentRelationship(scenario: Scenario, orgId: string): Relationship | undefined {
-    const relationship = scenario.relationships.find(
-      (candidate) =>
-        candidate.subjectType === "org" &&
-        candidate.subjectId === orgId &&
-        candidate.relation === "child_of" &&
-        candidate.objectType === "org"
-    );
+    const index = this.indexFor(scenario);
+    const relationship = index.orgParentByChild.get(orgId);
     if (relationship) {
       return relationship;
     }
 
-    const org = scenario.orgs.find((candidate) => candidate.id === orgId);
+    const org = index.orgsById.get(orgId);
     if (!org?.parentOrgId) {
       return undefined;
     }
 
     return {
-      id: `implicit-${org.id}-child-of-${org.parentOrgId}`,
+      id: `implicit-${orgId}-child-of-${org.parentOrgId}`,
       subjectType: "org",
-      subjectId: org.id,
+      subjectId: orgId,
       relation: "child_of",
       objectType: "org",
       objectId: org.parentOrgId
@@ -641,6 +670,26 @@ function deniedReason(permission: Permission): string {
   }
 
   return `Unknown permission ${permission}.`;
+}
+
+function appendToMap<K, V>(map: Map<K, V[]>, key: K, value: V) {
+  const existing = map.get(key);
+  if (existing) {
+    existing.push(value);
+    return;
+  }
+
+  map.set(key, [value]);
+}
+
+function subjectRelationKey(subject: EntityRef | Relationship, relation: RelationshipRelation): string {
+  const type = "subjectType" in subject ? subject.subjectType : subject.type;
+  const id = "subjectId" in subject ? subject.subjectId : subject.id;
+  return `${type}:${id}:${relation}`;
+}
+
+function subjectRelationObjectTypeKey(subject: EntityRef | Relationship, relation: RelationshipRelation, objectType: EntityType): string {
+  return `${subjectRelationKey(subject, relation)}:${objectType}`;
 }
 
 function stepFromRelationship(relationship: Relationship, reverse = false): AuthzPathStep {
