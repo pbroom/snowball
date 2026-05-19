@@ -72,6 +72,7 @@ import {
   getUserOrgId,
   parseIdentityKey,
   selectCurrentScenario,
+  uniqueById,
   useWorkbenchStore,
   type PendingDelete,
   type PendingRename
@@ -1509,17 +1510,6 @@ function relationshipLabel(scenario: Scenario, relationship: Relationship): stri
     type: relationship.objectType,
     id: relationship.objectId
   })}`;
-}
-
-function uniqueById<T extends { id: string }>(items: T[]): T[] {
-  const seen = new Set<string>();
-  return items.filter((item) => {
-    if (seen.has(item.id)) {
-      return false;
-    }
-    seen.add(item.id);
-    return true;
-  });
 }
 
 function identityOrgLabel(org: Org): string {

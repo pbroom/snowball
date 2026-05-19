@@ -776,7 +776,7 @@ function uniqueRelationshipId(scenario: Scenario, base: string): string {
   return uniqueId("rel", base.replace(/^rel-/, ""), scenario.relationships.map((relationship) => relationship.id));
 }
 
-function uniqueById<T extends { id: string }>(items: T[]): T[] {
+export function uniqueById<T extends { id: string }>(items: T[]): T[] {
   const seen = new Set<string>();
   return items.filter((item) => {
     if (seen.has(item.id)) {
