@@ -70,6 +70,7 @@ import {
   firstEntityId,
   getIdentityMoveTargets,
   getUserOrgId,
+  identityTreeFingerprint,
   parseIdentityKey,
   selectCurrentScenario,
   uniqueById,
@@ -189,8 +190,10 @@ export function App() {
   );
   const selectedTask = visibleTasks.find((task) => task.id === selectedTaskId) ?? visibleTasks[0];
   const validationIssues = useMemo(() => validateScenario(scenario), [scenario]);
-  const identityTreeItems = useMemo(() => buildIdentityTree(scenario), [scenario]);
-  const highlightedOrgId = selectedOrgId ?? (currentUser ? getUserOrgId(scenario, currentUser) : undefined);
+  const identityFingerprint = identityTreeFingerprint(scenario);
+  const identityTreeItems = useMemo(() => buildIdentityTree(scenario), [identityFingerprint]);
+  const highlightedOrgId =
+    selectedOrgId ?? (currentUser ? getUserOrgId(scenario, currentUser) : undefined);
 
   const selectedResourceType: ResourceType = selectedPermission.startsWith("resource.") ? "resource" : "task";
   const selectedTaskResources = useMemo(
@@ -273,6 +276,7 @@ export function App() {
               onMoveIdentity={moveIdentityNode}
             />
             <FormError id="org-form-error" message={formErrors.org} className="px-4 pt-3" />
+            <FormError id="user-form-error" message={formErrors.user} className="px-4 pt-1" />
           </CardContent>
         </Card>
 

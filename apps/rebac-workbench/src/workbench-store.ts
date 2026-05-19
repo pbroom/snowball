@@ -33,7 +33,7 @@ export type BuilderDraft = {
   taskParentId: string;
 };
 
-export type FormErrors = Partial<Record<"task" | "relationship" | "org", string>>;
+export type FormErrors = Partial<Record<"task" | "relationship" | "org" | "user", string>>;
 export type PendingDelete =
   | { type: "relationship"; id: string }
   | { type: "user"; id: string }
@@ -268,10 +268,26 @@ export const useWorkbenchStore = create<WorkbenchStore>((set) => ({
   deleteUser: (userId) =>
     set((state) => {
       if (state.pendingDelete?.type !== "user" || state.pendingDelete.id !== userId) {
-        return { pendingDelete: { type: "user", id: userId } };
+        return {
+          pendingDelete: { type: "user", id: userId },
+          formErrors: { ...state.formErrors, user: undefined }
+        };
       }
 
       const scenario = getScenarioFromState(state);
+      if (
+        scenario.tasks.some((task) => task.createdByUserId === userId) ||
+        scenario.resources.some((resource) => resource.createdByUserId === userId)
+      ) {
+        return {
+          pendingDelete: undefined,
+          formErrors: {
+            ...state.formErrors,
+            user: "Cannot delete a user who still created tasks or resources. Reassign or remove those records first."
+          }
+        };
+      }
+
       const nextUserId = state.currentUserId === userId ? scenario.users.find((user) => user.id !== userId)?.id ?? "" : state.currentUserId;
       return updateScenarioState(
         state,
@@ -284,7 +300,7 @@ export const useWorkbenchStore = create<WorkbenchStore>((set) => ({
           );
           appendAudit(draft, getEffectiveUserId(state), `Deleted user ${userId}.`, "identity.deleted", "user", userId);
         },
-        { currentUserId: nextUserId, pendingDelete: undefined }
+        { currentUserId: nextUserId, pendingDelete: undefined, formErrors: { ...state.formErrors, user: undefined } }
       );
     }),
 
@@ -666,6 +682,22 @@ export function parseIdentityKey(key: string): ParsedIdentityKey | undefined {
     return { type: "user", id: value.slice(5) };
   }
   return undefined;
+}
+
+/** Stable key for identity tree/chart memoization; ignores task, resource, and audit mutations. */
+export function identityTreeFingerprint(scenario: Scenario): string {
+  const orgs = scenario.orgs.map((org) => `${org.id}|${org.name}|${org.parentOrgId ?? ""}`).join(";");
+  const users = scenario.users.map((user) => `${user.id}|${user.displayName}|${user.primaryOrgId ?? ""}`).join(";");
+  const memberRelationships = scenario.relationships
+    .filter(
+      (relationship) =>
+        relationship.subjectType === "user" &&
+        relationship.objectType === "org" &&
+        relationship.relation === "member_of"
+    )
+    .map((relationship) => `${relationship.id}|${relationship.subjectId}|${relationship.objectId}`)
+    .join(";");
+  return `${orgs}::${users}::${memberRelationships}`;
 }
 
 export function getUserOrgId(scenario: Scenario, user: User): string | undefined {
