@@ -84,12 +84,18 @@ interface RestrictionMatch {
 }
 
 interface ScenarioAuthzIndex {
-  groupsFingerprint: string;
-  orgsFingerprint: string;
-  relationshipsFingerprint: string;
-  resourcesFingerprint: string;
-  tasksFingerprint: string;
-  usersFingerprint: string;
+  groups: Scenario["groups"];
+  orgs: Scenario["orgs"];
+  relationships: Scenario["relationships"];
+  resources: Scenario["resources"];
+  tasks: Scenario["tasks"];
+  users: Scenario["users"];
+  groupsLength: number;
+  orgsLength: number;
+  relationshipsLength: number;
+  resourcesLength: number;
+  tasksLength: number;
+  usersLength: number;
   tasksById: Map<string, Task>;
   orgParentByChild: Map<string, Relationship>;
   orgsById: Map<string, { parentOrgId?: string }>;
@@ -188,12 +194,18 @@ export class LocalAuthorizationService implements AuthorizationService {
     }
 
     const index: ScenarioAuthzIndex = {
-      groupsFingerprint: fingerprintGroups(scenario.groups),
-      orgsFingerprint: fingerprintOrgs(scenario.orgs),
-      relationshipsFingerprint: fingerprintRelationships(scenario.relationships),
-      resourcesFingerprint: fingerprintResources(scenario.resources),
-      tasksFingerprint: fingerprintTasks(scenario.tasks),
-      usersFingerprint: fingerprintUsers(scenario.users),
+      groups: scenario.groups,
+      orgs: scenario.orgs,
+      relationships: scenario.relationships,
+      resources: scenario.resources,
+      tasks: scenario.tasks,
+      users: scenario.users,
+      groupsLength: scenario.groups.length,
+      orgsLength: scenario.orgs.length,
+      relationshipsLength: scenario.relationships.length,
+      resourcesLength: scenario.resources.length,
+      tasksLength: scenario.tasks.length,
+      usersLength: scenario.users.length,
       tasksById: new Map(scenario.tasks.map((task) => [task.id, task])),
       orgParentByChild: new Map(),
       orgsById: new Map(scenario.orgs.map((org) => [org.id, org])),
@@ -686,44 +698,19 @@ function deniedReason(permission: Permission): string {
 
 function isIndexCurrent(scenario: Scenario, index: ScenarioAuthzIndex): boolean {
   return (
-    index.groupsFingerprint === fingerprintGroups(scenario.groups) &&
-    index.orgsFingerprint === fingerprintOrgs(scenario.orgs) &&
-    index.relationshipsFingerprint === fingerprintRelationships(scenario.relationships) &&
-    index.resourcesFingerprint === fingerprintResources(scenario.resources) &&
-    index.tasksFingerprint === fingerprintTasks(scenario.tasks) &&
-    index.usersFingerprint === fingerprintUsers(scenario.users)
+    index.groups === scenario.groups &&
+    index.groupsLength === scenario.groups.length &&
+    index.orgs === scenario.orgs &&
+    index.orgsLength === scenario.orgs.length &&
+    index.relationships === scenario.relationships &&
+    index.relationshipsLength === scenario.relationships.length &&
+    index.resources === scenario.resources &&
+    index.resourcesLength === scenario.resources.length &&
+    index.tasks === scenario.tasks &&
+    index.tasksLength === scenario.tasks.length &&
+    index.users === scenario.users &&
+    index.usersLength === scenario.users.length
   );
-}
-
-function fingerprintGroups(groups: Scenario["groups"]): string {
-  return groups.map((group) => `${group.id}:${group.name}`).join("|");
-}
-
-function fingerprintOrgs(orgs: Scenario["orgs"]): string {
-  return orgs.map((org) => `${org.id}:${org.parentOrgId ?? ""}:${org.name}:${org.abbreviation ?? ""}`).join("|");
-}
-
-function fingerprintRelationships(relationships: Scenario["relationships"]): string {
-  return relationships
-    .map(
-      (relationship) =>
-        `${relationship.id}:${relationship.subjectType}:${relationship.subjectId}:${relationship.relation}:${relationship.objectType}:${relationship.objectId}`
-    )
-    .join("|");
-}
-
-function fingerprintResources(resources: Scenario["resources"]): string {
-  return resources.map((resource) => `${resource.id}:${resource.taskId}:${resource.kind}:${resource.title}`).join("|");
-}
-
-function fingerprintTasks(tasks: Scenario["tasks"]): string {
-  return tasks
-    .map((task) => `${task.id}:${task.status}:${task.title}:${task.type}:${task.owningOrgId}:${task.parentTaskId ?? ""}`)
-    .join("|");
-}
-
-function fingerprintUsers(users: Scenario["users"]): string {
-  return users.map((user) => `${user.id}:${user.displayName}:${user.primaryOrgId ?? ""}`).join("|");
 }
 
 function appendToMap<K, V>(map: Map<K, V[]>, key: K, value: V) {

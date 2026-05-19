@@ -139,13 +139,14 @@ export const useWorkbenchStore = create<WorkbenchStore>((set) => ({
       const effectiveUserId = getEffectiveUserId(state);
       const title = state.builderDraft.taskTitle.trim();
       const type = state.builderDraft.taskType.trim() || "task";
-      if (!title || !state.builderDraft.taskOwnerOrgId || !effectiveUserId) {
+      const ownerOrgExists = scenario.orgs.some((org) => org.id === state.builderDraft.taskOwnerOrgId);
+      if (!title || !ownerOrgExists || !effectiveUserId) {
         return {
           formErrors: {
             ...state.formErrors,
             task: !title
               ? "Enter a task title before creating the task."
-              : !state.builderDraft.taskOwnerOrgId
+              : !ownerOrgExists
                 ? "Choose the org that owns this task."
                 : "Select a current user so the creator relationship can be recorded."
           }
@@ -199,11 +200,17 @@ export const useWorkbenchStore = create<WorkbenchStore>((set) => ({
   addRelationship: () =>
     set((state) => {
       const scenario = getScenarioFromState(state);
-      if (!state.relationshipDraft.subjectId || !state.relationshipDraft.objectId) {
+      const subjectExists = entityOptions(scenario, state.relationshipDraft.subjectType).some(
+        (option) => option.id === state.relationshipDraft.subjectId
+      );
+      const objectExists = entityOptions(scenario, state.relationshipDraft.objectType).some(
+        (option) => option.id === state.relationshipDraft.objectId
+      );
+      if (!subjectExists || !objectExists) {
         return {
           formErrors: {
             ...state.formErrors,
-            relationship: "Choose both ends of the edge before adding the relationship."
+            relationship: "Choose existing entities for both ends of the edge."
           }
         };
       }

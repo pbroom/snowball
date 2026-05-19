@@ -192,10 +192,14 @@ export function App() {
   const highlightedOrgId = selectedOrgId ?? (currentUser ? getUserOrgId(scenario, currentUser) : undefined);
 
   const selectedResourceType: ResourceType = selectedPermission.startsWith("resource.") ? "resource" : "task";
+  const selectedTaskResources = useMemo(
+    () => (selectedTask ? authz.listVisibleResources({ scenario, userId: effectiveUserId, taskId: selectedTask.id }) : []),
+    [effectiveUserId, scenario, selectedTask]
+  );
   const selectedResourceId =
     selectedResourceType === "task"
       ? selectedTask?.id ?? ""
-      : scenario.resources.find((resource) => resource.taskId === selectedTask?.id)?.id ?? "";
+      : selectedTaskResources[0]?.id ?? "";
   const decision = useMemo<AuthzResult | undefined>(() => {
     if (!effectiveUserId || !selectedResourceId) {
       return undefined;
@@ -209,10 +213,6 @@ export function App() {
       resourceId: selectedResourceId
     });
   }, [effectiveUserId, scenario, selectedPermission, selectedResourceId, selectedResourceType]);
-  const selectedTaskResources = useMemo(
-    () => (selectedTask ? authz.listVisibleResources({ scenario, userId: effectiveUserId, taskId: selectedTask.id }) : []),
-    [effectiveUserId, scenario, selectedTask]
-  );
   const permissionsForTask = useMemo(
     () =>
       selectedTask && effectiveUserId

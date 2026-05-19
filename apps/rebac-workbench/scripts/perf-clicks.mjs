@@ -41,7 +41,8 @@ try {
       clicks: [],
       longTasks: [],
       storageWrites: 0,
-      storageWriteMs: 0
+      storageWriteMs: 0,
+      eventTimingSupported: true
     };
 
     try {
@@ -57,7 +58,7 @@ try {
         }
       }).observe({ type: "event", buffered: true, durationThreshold: 0 });
     } catch {
-      // Event Timing is not available in every browser channel.
+      window.__snowballPerf.eventTimingSupported = false;
     }
 
     try {
@@ -96,6 +97,7 @@ try {
       longTasks: window.__snowballPerf.longTasks.length,
       storageWrites: window.__snowballPerf.storageWrites,
       storageWriteMs: window.__snowballPerf.storageWriteMs,
+      eventTimingSupported: window.__snowballPerf.eventTimingSupported,
       t: performance.now()
     }));
     await action();
@@ -106,6 +108,7 @@ try {
       longTasks: window.__snowballPerf.longTasks,
       storageWrites: window.__snowballPerf.storageWrites,
       storageWriteMs: window.__snowballPerf.storageWriteMs,
+      eventTimingSupported: window.__snowballPerf.eventTimingSupported,
       t: performance.now()
     }));
 
@@ -119,7 +122,8 @@ try {
       })),
       longTasks: after.longTasks.slice(before.longTasks).map((task) => round(task.duration)),
       storageWrites: after.storageWrites - before.storageWrites,
-      storageWriteMs: round(after.storageWriteMs - before.storageWriteMs)
+      storageWriteMs: round(after.storageWriteMs - before.storageWriteMs),
+      eventTimingSupported: before.eventTimingSupported && after.eventTimingSupported
     };
   }
 
@@ -150,11 +154,17 @@ function checksFor(result) {
   const failures = [];
   const maxProcessingMs = Math.max(0, ...result.clickEvents.map((event) => event.processingMs));
 
+  if (!result.eventTimingSupported) {
+    failures.push(`${result.name}: Event Timing API was unavailable, so click processing could not be measured`);
+  } else if (result.clickEvents.length === 0) {
+    failures.push(`${result.name}: captured no click Event Timing entries`);
+  }
+
   if (result.wallMs > wallBudgetMs) {
     failures.push(`${result.name}: wall time ${result.wallMs}ms exceeded ${wallBudgetMs}ms`);
   }
 
-  if (maxProcessingMs > clickProcessingBudgetMs) {
+  if (result.eventTimingSupported && maxProcessingMs > clickProcessingBudgetMs) {
     failures.push(`${result.name}: click processing ${maxProcessingMs}ms exceeded ${clickProcessingBudgetMs}ms`);
   }
 
