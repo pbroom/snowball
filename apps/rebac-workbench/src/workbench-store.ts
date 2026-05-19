@@ -33,7 +33,7 @@ export type BuilderDraft = {
   taskParentId: string;
 };
 
-export type FormErrors = Partial<Record<"task" | "relationship", string>>;
+export type FormErrors = Partial<Record<"task" | "relationship" | "org", string>>;
 export type PendingDelete =
   | { type: "relationship"; id: string }
   | { type: "user"; id: string }
@@ -291,12 +291,21 @@ export const useWorkbenchStore = create<WorkbenchStore>((set) => ({
   deleteOrg: (orgId) =>
     set((state) => {
       if (state.pendingDelete?.type !== "org" || state.pendingDelete.id !== orgId) {
-        return { pendingDelete: { type: "org", id: orgId } };
+        return {
+          pendingDelete: { type: "org", id: orgId },
+          formErrors: { ...state.formErrors, org: undefined }
+        };
       }
 
       const scenario = getScenarioFromState(state);
       if (scenario.tasks.some((task) => task.owningOrgId === orgId)) {
-        return { pendingDelete: undefined };
+        return {
+          pendingDelete: undefined,
+          formErrors: {
+            ...state.formErrors,
+            org: "Cannot delete an org that still owns tasks. Reassign or remove those tasks first."
+          }
+        };
       }
 
       return updateScenarioState(
@@ -320,7 +329,7 @@ export const useWorkbenchStore = create<WorkbenchStore>((set) => ({
           }
           appendAudit(draft, getEffectiveUserId(state), `Deleted org ${orgId}.`, "org.deleted", "org", orgId);
         },
-        { pendingDelete: undefined }
+        { pendingDelete: undefined, formErrors: { ...state.formErrors, org: undefined } }
       );
     }),
 

@@ -271,6 +271,7 @@ export function App() {
               onDeleteOrg={deleteOrg}
               onMoveIdentity={moveIdentityNode}
             />
+            <FormError id="org-form-error" message={formErrors.org} className="px-4 pt-3" />
           </CardContent>
         </Card>
 
