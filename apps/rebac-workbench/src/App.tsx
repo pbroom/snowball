@@ -1098,7 +1098,6 @@ function IdentityTreeItem(props: {
       ? props.pendingDelete?.type === "org" && props.pendingDelete.id === org.id
       : Boolean(user && props.pendingDelete?.type === "user" && props.pendingDelete.id === user.id);
   const rename = props.pendingRename?.type === item.type && props.pendingRename.id === (org?.id ?? user?.id) ? props.pendingRename : undefined;
-  const moveTargets = getIdentityMoveTargets(props.scenario, item);
 
   function handleTreeItemKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
     if (!hasChildItems || props.pendingRename || event.defaultPrevented) {
@@ -1135,7 +1134,7 @@ function IdentityTreeItem(props: {
   return (
     <TreeItem
       id={item.id}
-      textValue={props.pendingRename ? "_" : item.label}
+      textValue={rename ? item.label : props.pendingRename ? `\u200b${item.id}` : item.label}
       className="identity-tree-item"
       aria-expanded={hasChildItems ? isExpanded : undefined}
     >
@@ -1225,7 +1224,7 @@ function IdentityTreeItem(props: {
               ) : (
                 <IdentityRowActions
                   item={item}
-                  moveTargets={moveTargets}
+                  scenario={props.scenario}
                   canMoveToTopLevel={Boolean(org?.parentOrgId)}
                   disableDelete={hasTaskDependency}
                   onAddOrg={() => props.onAddOrg(item.id)}
@@ -1370,7 +1369,7 @@ function IdentityRenameEditor(props: {
 
 function IdentityRowActions(props: {
   item: IdentityTreeNode;
-  moveTargets: Org[];
+  scenario: Scenario;
   canMoveToTopLevel?: boolean;
   disableDelete: boolean;
   onAddOrg: () => void;
@@ -1379,8 +1378,26 @@ function IdentityRowActions(props: {
   onMove: (targetOrgId: string | undefined) => void;
   onStartDelete: () => void;
 }) {
+  const [moveTargets, setMoveTargets] = useState<Org[] | null>(null);
+
+  useEffect(() => {
+    setMoveTargets(null);
+  }, [props.scenario, props.item.id]);
+
+  function ensureMoveTargets() {
+    if (moveTargets === null) {
+      setMoveTargets(getIdentityMoveTargets(props.scenario, props.item));
+    }
+  }
+
   return (
-    <DropdownMenu>
+    <DropdownMenu
+      onOpenChange={(open) => {
+        if (open) {
+          ensureMoveTargets();
+        }
+      }}
+    >
       <DropdownMenuTrigger asChild>
         <Button type="button" variant="ghost" size="icon-sm" aria-label={`Open actions for ${props.item.label}`}>
           <HugeiconsIcon icon={MoreHorizontalIcon} strokeWidth={2} aria-hidden />
@@ -1401,7 +1418,13 @@ function IdentityRowActions(props: {
             <HugeiconsIcon icon={Edit02Icon} strokeWidth={2} aria-hidden />
             Rename
           </DropdownMenuItem>
-          <DropdownMenuSub>
+          <DropdownMenuSub
+            onOpenChange={(open) => {
+              if (open) {
+                ensureMoveTargets();
+              }
+            }}
+          >
             <DropdownMenuSubTrigger>
               <HugeiconsIcon icon={Add01Icon} strokeWidth={2} aria-hidden />
               Move to
@@ -1411,8 +1434,8 @@ function IdentityRowActions(props: {
                 {props.canMoveToTopLevel ? (
                   <DropdownMenuItem onSelect={() => props.onMove(undefined)}>Top level</DropdownMenuItem>
                 ) : null}
-                {props.moveTargets.length > 0 ? (
-                  props.moveTargets.map((org) => (
+                {moveTargets === null ? null : moveTargets.length > 0 ? (
+                  moveTargets.map((org) => (
                     <DropdownMenuItem key={org.id} onSelect={() => props.onMove(org.id)}>
                       {org.abbreviation ?? org.name}
                     </DropdownMenuItem>

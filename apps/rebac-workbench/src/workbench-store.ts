@@ -301,7 +301,15 @@ export const useWorkbenchStore = create<WorkbenchStore>((set) => ({
           );
           appendAudit(draft, getEffectiveUserId(state), `Deleted user ${userId}.`, "identity.deleted", "user", userId);
         },
-        { currentUserId: nextUserId, pendingDelete: undefined, formErrors: { ...state.formErrors, user: undefined } }
+        {
+          currentUserId: nextUserId,
+          pendingDelete: undefined,
+          pendingRename:
+            state.pendingRename?.type === "user" && state.pendingRename.id === userId
+              ? undefined
+              : state.pendingRename,
+          formErrors: { ...state.formErrors, user: undefined }
+        }
       );
     }),
 
@@ -346,7 +354,12 @@ export const useWorkbenchStore = create<WorkbenchStore>((set) => ({
           }
           appendAudit(draft, getEffectiveUserId(state), `Deleted org ${orgId}.`, "org.deleted", "org", orgId);
         },
-        { pendingDelete: undefined, formErrors: { ...state.formErrors, org: undefined } }
+        {
+          pendingDelete: undefined,
+          pendingRename:
+            state.pendingRename?.type === "org" && state.pendingRename.id === orgId ? undefined : state.pendingRename,
+          formErrors: { ...state.formErrors, org: undefined }
+        }
       );
     }),
 
