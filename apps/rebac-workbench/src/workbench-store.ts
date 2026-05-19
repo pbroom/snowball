@@ -139,8 +139,10 @@ export const useWorkbenchStore = create<WorkbenchStore>((set) => ({
       const effectiveUserId = getEffectiveUserId(state);
       const title = state.builderDraft.taskTitle.trim();
       const type = state.builderDraft.taskType.trim() || "task";
+      const parentTaskId = state.builderDraft.taskParentId;
       const ownerOrgExists = scenario.orgs.some((org) => org.id === state.builderDraft.taskOwnerOrgId);
-      if (!title || !ownerOrgExists || !effectiveUserId) {
+      const parentTaskExists = !parentTaskId || scenario.tasks.some((task) => task.id === parentTaskId);
+      if (!title || !ownerOrgExists || !parentTaskExists || !effectiveUserId) {
         return {
           formErrors: {
             ...state.formErrors,
@@ -148,6 +150,8 @@ export const useWorkbenchStore = create<WorkbenchStore>((set) => ({
               ? "Enter a task title before creating the task."
               : !ownerOrgExists
                 ? "Choose the org that owns this task."
+                : !parentTaskExists
+                  ? "Choose an existing parent task or clear the parent field."
                 : "Select a current user so the creator relationship can be recorded."
           }
         };
@@ -162,7 +166,7 @@ export const useWorkbenchStore = create<WorkbenchStore>((set) => ({
             id,
             type,
             title,
-            parentTaskId: state.builderDraft.taskParentId || undefined,
+            parentTaskId: parentTaskId || undefined,
             owningOrgId: state.builderDraft.taskOwnerOrgId,
             createdByUserId: effectiveUserId,
             status: "open",
@@ -177,14 +181,14 @@ export const useWorkbenchStore = create<WorkbenchStore>((set) => ({
             objectType: "org",
             objectId: state.builderDraft.taskOwnerOrgId
           });
-          if (state.builderDraft.taskParentId) {
+          if (parentTaskId) {
             draft.relationships.push({
-              id: `rel-${id}-parent-${state.builderDraft.taskParentId}`,
+              id: `rel-${id}-parent-${parentTaskId}`,
               subjectType: "task",
               subjectId: id,
               relation: "parent",
               objectType: "task",
-              objectId: state.builderDraft.taskParentId
+              objectId: parentTaskId
             });
           }
           appendAudit(draft, effectiveUserId, `Created task ${title}.`, "task.created", "task", id);
@@ -312,6 +316,26 @@ export const useWorkbenchStore = create<WorkbenchStore>((set) => ({
       const source = parseIdentityKey(sourceKey);
       if (!source) {
         return {};
+      }
+
+      const scenario = getScenarioFromState(state);
+      if (source.type === "user") {
+        const user = scenario.users.find((candidate) => candidate.id === source.id);
+        if (!user || !targetOrgId || !scenario.orgs.some((org) => org.id === targetOrgId) || getUserOrgId(scenario, user) === targetOrgId) {
+          return {};
+        }
+      } else {
+        const org = scenario.orgs.find((candidate) => candidate.id === source.id);
+        if (!org || org.parentOrgId === targetOrgId || org.id === targetOrgId) {
+          return {};
+        }
+
+        if (targetOrgId) {
+          const targetOrg = scenario.orgs.find((candidate) => candidate.id === targetOrgId);
+          if (!targetOrg || isDescendantOrg(scenario, org.id, targetOrg.id)) {
+            return {};
+          }
+        }
       }
 
       return updateScenarioState(
