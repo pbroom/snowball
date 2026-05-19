@@ -289,6 +289,11 @@ export const useWorkbenchStore = create<WorkbenchStore>((set) => ({
               org.parentOrgId = undefined;
             }
           }
+          for (const user of draft.users) {
+            if (user.primaryOrgId === orgId) {
+              user.primaryOrgId = undefined;
+            }
+          }
           appendAudit(draft, getEffectiveUserId(state), `Deleted org ${orgId}.`, "org.deleted", "org", orgId);
         },
         { pendingDelete: undefined }
@@ -493,6 +498,19 @@ export const useWorkbenchStore = create<WorkbenchStore>((set) => ({
       const name = rename?.value.trim();
       if (!rename || !name) {
         return {};
+      }
+
+      const scenario = getScenarioFromState(state);
+      if (rename.type === "org") {
+        const org = scenario.orgs.find((candidate) => candidate.id === rename.id);
+        if (!org || org.name === name) {
+          return { pendingRename: undefined };
+        }
+      } else {
+        const user = scenario.users.find((candidate) => candidate.id === rename.id);
+        if (!user || user.displayName === name) {
+          return { pendingRename: undefined };
+        }
       }
 
       return updateScenarioState(

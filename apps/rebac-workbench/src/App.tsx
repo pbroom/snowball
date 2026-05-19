@@ -186,7 +186,7 @@ export function App() {
     () => (effectiveUserId ? authz.listVisibleTasks({ scenario, userId: effectiveUserId }) : []),
     [effectiveUserId, scenario]
   );
-  const selectedTask = visibleTasks.find((task) => task.id === selectedTaskId) ?? visibleTasks[0] ?? scenario.tasks[0];
+  const selectedTask = visibleTasks.find((task) => task.id === selectedTaskId) ?? visibleTasks[0];
   const validationIssues = useMemo(() => validateScenario(scenario), [scenario]);
   const identityTreeItems = useMemo(() => buildIdentityTree(scenario), [scenario]);
   const highlightedOrgId = selectedOrgId ?? (currentUser ? getUserOrgId(scenario, currentUser) : undefined);
@@ -1217,6 +1217,7 @@ function IdentityTreeItem(props: {
                 <IdentityRowActions
                   item={item}
                   moveTargets={moveTargets}
+                  canMoveToTopLevel={Boolean(org?.parentOrgId)}
                   disableDelete={hasTaskDependency}
                   onAddOrg={() => props.onAddOrg(item.id)}
                   onAddUser={() => props.onAddUser(item.id)}
@@ -1361,11 +1362,12 @@ function IdentityRenameEditor(props: {
 function IdentityRowActions(props: {
   item: IdentityTreeNode;
   moveTargets: Org[];
+  canMoveToTopLevel?: boolean;
   disableDelete: boolean;
   onAddOrg: () => void;
   onAddUser: () => void;
   onStartRename: () => void;
-  onMove: (targetOrgId: string) => void;
+  onMove: (targetOrgId: string | undefined) => void;
   onStartDelete: () => void;
 }) {
   return (
@@ -1397,13 +1399,16 @@ function IdentityRowActions(props: {
             </DropdownMenuSubTrigger>
             <DropdownMenuPortal>
               <DropdownMenuSubContent className="max-h-64 min-w-44 overflow-y-auto">
+                {props.canMoveToTopLevel ? (
+                  <DropdownMenuItem onSelect={() => props.onMove(undefined)}>Top level</DropdownMenuItem>
+                ) : null}
                 {props.moveTargets.length > 0 ? (
                   props.moveTargets.map((org) => (
                     <DropdownMenuItem key={org.id} onSelect={() => props.onMove(org.id)}>
                       {org.abbreviation ?? org.name}
                     </DropdownMenuItem>
                   ))
-                ) : (
+                ) : props.canMoveToTopLevel ? null : (
                   <DropdownMenuItem disabled>No available orgs</DropdownMenuItem>
                 )}
               </DropdownMenuSubContent>

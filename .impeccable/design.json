@@ -36,7 +36,7 @@
       },
       "primary": {
         "role": "primary",
-        "displayName": "Investigation Teal",
+        "displayName": "Investigation Emerald",
         "canonical": "oklch(0.508 0.118 165.612)",
         "tonalRamp": [
           "oklch(0.15 0.118 165.612)",
@@ -65,7 +65,7 @@
         ]
       },
       "destructive": {
-        "role": "primary",
+        "role": "destructive",
         "displayName": "Decision Red",
         "canonical": "oklch(0.577 0.245 27.325)",
         "tonalRamp": [
@@ -176,7 +176,7 @@
     "overview": "Snowball should feel like a precise field notebook for access modeling: compact, gridded, and quietly analytical. The interface supports dense scenario editing, actor switching, permission explanation, validation, and audit history without adding theatrical decoration or marketing posture.\n\nThe system is product-first. It favors crisp controls, subtle tonal layers, readable labels, and small interactive affordances that let users trace causality across users, orgs, tasks, resources, and relationships.",
     "keyCharacteristics": [
       "Compact workbench density with clear panel boundaries.",
-      "Muted neutral surfaces with one restrained teal primary.",
+      "Muted neutral surfaces with one restrained emerald primary.",
       "Small, consistent controls optimized for repeated editing.",
       "Focus states and validation states that are visible but not loud.",
       "Explanatory surfaces that keep authorization logic close to the data."
@@ -184,7 +184,7 @@
     "rules": [
       {
         "name": "The Sparse Signal Rule",
-        "body": "The teal primary is for action and authorization signal. Do not flood panels with it.",
+        "body": "The emerald primary is for action and authorization signal. Do not flood panels with it.",
         "section": "colors"
       },
       {
@@ -204,7 +204,7 @@
       }
     ],
     "dos": [
-      "Do use Investigation Teal sparingly for primary action, selected state, and authorization signal.",
+      "Do use Investigation Emerald sparingly for primary action, selected state, and authorization signal.",
       "Do keep scenario editing, validation, and permission explanation visually close together.",
       "Do preserve compact workbench density with clear labels and visible focus states.",
       "Do use Flat Panel Rings for persistent containers and Popover Lift only for temporary overlays.",

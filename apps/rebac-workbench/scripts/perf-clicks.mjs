@@ -1,9 +1,24 @@
 import { chromium } from "playwright";
 
+function parseEnvNumber(name, fallback) {
+  const raw = process.env[name];
+  if (raw === undefined || raw === "") {
+    return fallback;
+  }
+
+  const value = Number(raw);
+  if (!Number.isFinite(value)) {
+    console.error(`Invalid ${name}="${raw}" (expected a finite number).`);
+    process.exit(1);
+  }
+
+  return value;
+}
+
 const targetUrl = process.env.PERF_URL ?? "http://localhost:5173";
-const clickProcessingBudgetMs = Number(process.env.PERF_CLICK_PROCESSING_BUDGET_MS ?? 16);
-const wallBudgetMs = Number(process.env.PERF_CLICK_WALL_BUDGET_MS ?? 80);
-const allowedStorageWrites = Number(process.env.PERF_ALLOWED_STORAGE_WRITES ?? 0);
+const clickProcessingBudgetMs = parseEnvNumber("PERF_CLICK_PROCESSING_BUDGET_MS", 16);
+const wallBudgetMs = parseEnvNumber("PERF_CLICK_WALL_BUDGET_MS", 80);
+const allowedStorageWrites = parseEnvNumber("PERF_ALLOWED_STORAGE_WRITES", 0);
 
 async function launchBrowser() {
   try {

@@ -99,18 +99,22 @@ It explicitly rejects the PRODUCT.md anti-references: generic SaaS landing-page 
 The palette is a restrained mist-neutral system with a cool emerald primary used for decisions and primary actions.
 
 ### Primary
+
 - **Investigation Emerald** (`primary`): Used for primary actions, selected badges, and affirmative permission emphasis. Its role is sparse, useful signal rather than brand decoration.
 - **Pale Emerald Ink** (`primary-foreground`): Text and icon color on primary surfaces.
 
 ### Secondary
+
 - **Quiet Control Mist** (`secondary`): Low-emphasis controls and secondary actions where hierarchy must stay behind the data.
 - **Graphite Control Text** (`secondary-foreground`): Text on quiet control surfaces.
 
 ### Tertiary
+
 - **Soft Focus Mist** (`accent`): Hover, active, and selected-menu backgrounds. Use it to show local interaction state without changing the whole panel hierarchy.
 - **Deep Focus Text** (`accent-foreground`): Text on accent surfaces.
 
 ### Neutral
+
 - **Paper White** (`background`, `card`): The default light workspace and card surface.
 - **Ink Graphite** (`foreground`, `card-foreground`): Primary text and headings.
 - **Relationship Mist** (`muted`): Secondary regions, empty fields, and subdued rows.
@@ -134,6 +138,7 @@ The palette is a restrained mist-neutral system with a cool emerald primary used
 **Character:** The type system is compact, neutral, and tool-like. It privileges scan speed over personality, with small sizes, medium labels, and relaxed line heights for dense data.
 
 ### Hierarchy
+
 - **Display** (600, 1.125rem, 1.25): Reserved for page-level or major panel headings. Use rarely.
 - **Headline** (500, 1rem, 1.3): Section headings and prominent explanatory labels.
 - **Title** (500, 0.875rem, 1.25): Card titles, grouped control labels, and inspector headings.
@@ -149,6 +154,7 @@ The palette is a restrained mist-neutral system with a cool emerald primary used
 Snowball uses tonal layering, one-pixel rings, and occasional popover shadows. Cards are flat at rest with `ring-1 ring-foreground/10`; menus use `shadow-md` only while floating above the workspace.
 
 ### Shadow Vocabulary
+
 - **Popover Lift** (`shadow-md`): Select menus and other temporary overlays that need to separate from the dense workspace.
 - **Flat Panel Ring** (`ring-1 ring-foreground/10`): Default card and panel boundary. This is the primary depth vocabulary.
 
@@ -159,16 +165,19 @@ Snowball uses tonal layering, one-pixel rings, and occasional popover shadows. C
 ## 5. Components
 
 ### Buttons
+
 - **Shape:** Compact rounded rectangles (medium radius, `calc(0.625rem * 0.8)`).
 - **Primary:** Investigation Emerald background with Pale Emerald Ink text, usually 1.75rem high with tight horizontal padding.
 - **Hover / Focus:** Primary buttons darken with opacity on hover. Focus uses a visible ring and border shift, never a glow-heavy effect.
 - **Secondary / Ghost / Tertiary:** Secondary buttons use Quiet Control Mist; outline and ghost variants rely on border, muted fill, or hover state instead of extra color.
 
 ### Chips
+
 - **Style:** Full-pill shape with 0.625rem type, tight horizontal padding, and role-specific fills.
 - **State:** Primary chips mark important selected or affirmative states. Outline chips carry metadata without competing with controls.
 
 ### Cards / Containers
+
 - **Corner Style:** Soft rounded panels (large radius, `0.625rem`).
 - **Background:** Paper White or dark-mode card surfaces.
 - **Shadow Strategy:** Flat Panel Ring by default; no resting shadows.
@@ -176,11 +185,13 @@ Snowball uses tonal layering, one-pixel rings, and occasional popover shadows. C
 - **Internal Padding:** Compact 1rem default padding, 0.75rem for small cards.
 
 ### Inputs / Fields
+
 - **Style:** 1.75rem high, medium radius, thin border, and translucent input fill.
 - **Focus:** Border moves to Focus Cloud and receives a two-pixel ring at low opacity.
 - **Error / Disabled:** Error states use Decision Red border and ring; disabled fields reduce opacity and remove pointer interaction.
 
 ### Navigation
+
 - **Style, typography, default/hover/active states, mobile treatment.** Navigation is control-like rather than brand-like: small labels, restrained icons, compact spacing, and muted hover fills. The current workbench is desktop-first with a wide minimum width, so future responsive navigation should preserve panel clarity before reducing density.
 
 ### Permission Explanation Surfaces
@@ -190,6 +201,7 @@ Permission explanations and audit records should read as evidence trails. Use mu
 ## 6. Do's and Don'ts
 
 ### Do:
+
 - **Do** use Investigation Emerald sparingly for primary action, selected state, and authorization signal.
 - **Do** keep scenario editing, validation, and permission explanation visually close together.
 - **Do** preserve compact workbench density with clear labels and visible focus states.
@@ -197,6 +209,7 @@ Permission explanations and audit records should read as evidence trails. Use mu
 - **Do** communicate permission decisions with labels, icons, and explanation paths, not color alone.
 
 ### Don't:
+
 - **Don't** use generic SaaS landing-page polish.
 - **Don't** use decorative glassmorphism.
 - **Don't** use neon cyber-security tropes.

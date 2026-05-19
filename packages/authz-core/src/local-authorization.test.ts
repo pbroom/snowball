@@ -175,4 +175,40 @@ describe("LocalAuthorizationService", () => {
       }).allowed
     ).toBe(true);
   });
+
+  it("rebuilds cached indexes after replacing relationships with the same length", () => {
+    const scenario = cloneScenario(seedScenario);
+
+    expect(
+      service.check({
+        scenario,
+        userId: "user-blake",
+        permission: "task.view",
+        resourceType: "task",
+        resourceId: "task-rebac-policy"
+      }).allowed
+    ).toBe(false);
+
+    scenario.relationships = [
+      ...scenario.relationships,
+      {
+        id: "rel-task-rebac-policy-viewer-blake",
+        subjectType: "task",
+        subjectId: "task-rebac-policy",
+        relation: "viewer",
+        objectType: "user",
+        objectId: "user-blake"
+      }
+    ];
+
+    expect(
+      service.check({
+        scenario,
+        userId: "user-blake",
+        permission: "task.view",
+        resourceType: "task",
+        resourceId: "task-rebac-policy"
+      }).allowed
+    ).toBe(true);
+  });
 });

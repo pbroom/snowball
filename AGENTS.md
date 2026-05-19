@@ -1,3 +1,5 @@
+# AGENTS
+
 ## Learned User Preferences
 
 - Prefer the `cursor/` branch prefix for Cursor-driven work (for example `cursor/short-description`).

@@ -1,9 +1,5 @@
 # Product
 
-## Register
-
-product
-
 ## Users
 
 Snowball is for engineers, product builders, and security-minded teams experimenting with relationship-based access control. They use the workbench while modeling organizations, users, groups, tasks, resources, and permission paths, often needing to understand why a user can or cannot see or act on something.

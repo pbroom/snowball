@@ -1,4 +1,5 @@
 import js from "@eslint/js";
+import globals from "globals";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
@@ -21,8 +22,17 @@ export default tseslint.config(
   },
   {
     files: ["**/*.mjs"],
-    rules: {
-      "no-undef": "off"
+    languageOptions: {
+      globals: globals.node
+    }
+  },
+  {
+    files: ["apps/rebac-workbench/scripts/perf-clicks.mjs"],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+        ...globals.browser
+      }
     }
   }
 );
