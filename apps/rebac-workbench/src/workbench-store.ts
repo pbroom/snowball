@@ -87,13 +87,14 @@ type WorkbenchActions = {
 export type WorkbenchStore = WorkbenchState & WorkbenchActions;
 
 const initialScenarios = loadScenarios();
+const bootScenarios = initialScenarios.length > 0 ? initialScenarios : [cloneScenario(seedScenario)];
 const initialScenario = getScenarioFromState({
-  scenarios: initialScenarios,
-  selectedScenarioId: initialScenarios[0]?.id ?? seedScenario.id
+  scenarios: bootScenarios,
+  selectedScenarioId: bootScenarios[0]?.id ?? seedScenario.id
 });
 
 export const useWorkbenchStore = create<WorkbenchStore>((set) => ({
-  scenarios: initialScenarios,
+  scenarios: bootScenarios,
   selectedScenarioId: initialScenario.id,
   currentUserId: initialScenario.users[0]?.id ?? "",
   selectedTaskId: initialScenario.tasks[0]?.id ?? "",

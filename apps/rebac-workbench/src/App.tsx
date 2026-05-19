@@ -231,8 +231,11 @@ export function App() {
   }, [markAutosaved, scenarios]);
 
   useEffect(() => {
+    if (!selectedOrgId) {
+      return;
+    }
     reconcileSelectedOrg();
-  }, [reconcileSelectedOrg, scenario.orgs]);
+  }, [identityFingerprint, reconcileSelectedOrg, selectedOrgId]);
 
   return (
     <main className="min-h-screen bg-muted/30 p-3 sm:p-4 xl:p-6">
