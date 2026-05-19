@@ -181,6 +181,14 @@ export const useWorkbenchStore = create<WorkbenchStore>((set) => ({
             objectType: "org",
             objectId: state.builderDraft.taskOwnerOrgId
           });
+          draft.relationships.push({
+            id: `rel-${id}-created-by-${effectiveUserId}`,
+            subjectType: "task",
+            subjectId: id,
+            relation: "created_by",
+            objectType: "user",
+            objectId: effectiveUserId
+          });
           if (parentTaskId) {
             draft.relationships.push({
               id: `rel-${id}-parent-${parentTaskId}`,
@@ -284,6 +292,11 @@ export const useWorkbenchStore = create<WorkbenchStore>((set) => ({
     set((state) => {
       if (state.pendingDelete?.type !== "org" || state.pendingDelete.id !== orgId) {
         return { pendingDelete: { type: "org", id: orgId } };
+      }
+
+      const scenario = getScenarioFromState(state);
+      if (scenario.tasks.some((task) => task.owningOrgId === orgId)) {
+        return { pendingDelete: undefined };
       }
 
       return updateScenarioState(

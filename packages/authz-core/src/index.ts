@@ -84,6 +84,9 @@ interface RestrictionMatch {
 }
 
 interface ScenarioAuthzIndex {
+  relationshipsFingerprint: string;
+  tasksFingerprint: string;
+  resourcesFingerprint: string;
   groups: Scenario["groups"];
   orgs: Scenario["orgs"];
   relationships: Scenario["relationships"];
@@ -194,6 +197,9 @@ export class LocalAuthorizationService implements AuthorizationService {
     }
 
     const index: ScenarioAuthzIndex = {
+      relationshipsFingerprint: fingerprintRelationships(scenario.relationships),
+      tasksFingerprint: fingerprintTasks(scenario.tasks),
+      resourcesFingerprint: fingerprintResources(scenario.resources),
       groups: scenario.groups,
       orgs: scenario.orgs,
       relationships: scenario.relationships,
@@ -704,13 +710,32 @@ function isIndexCurrent(scenario: Scenario, index: ScenarioAuthzIndex): boolean 
     index.orgsLength === scenario.orgs.length &&
     index.relationships === scenario.relationships &&
     index.relationshipsLength === scenario.relationships.length &&
+    index.relationshipsFingerprint === fingerprintRelationships(scenario.relationships) &&
     index.resources === scenario.resources &&
     index.resourcesLength === scenario.resources.length &&
+    index.resourcesFingerprint === fingerprintResources(scenario.resources) &&
     index.tasks === scenario.tasks &&
     index.tasksLength === scenario.tasks.length &&
+    index.tasksFingerprint === fingerprintTasks(scenario.tasks) &&
     index.users === scenario.users &&
     index.usersLength === scenario.users.length
   );
+}
+
+function fingerprintRelationships(relationships: Scenario["relationships"]): string {
+  return relationships
+    .map((relationship) =>
+      `${relationship.id}|${relationship.subjectType}|${relationship.subjectId}|${relationship.relation}|${relationship.objectType}|${relationship.objectId}`
+    )
+    .join(";");
+}
+
+function fingerprintTasks(tasks: Scenario["tasks"]): string {
+  return tasks.map((task) => `${task.id}|${task.owningOrgId}`).join(";");
+}
+
+function fingerprintResources(resources: Scenario["resources"]): string {
+  return resources.map((resource) => `${resource.id}|${resource.taskId}`).join(";");
 }
 
 function appendToMap<K, V>(map: Map<K, V[]>, key: K, value: V) {

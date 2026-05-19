@@ -1,4 +1,4 @@
-import { useState, type FocusEvent } from "react";
+import { useId, useState, type FocusEvent } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ComputerIcon, Moon02Icon, Sun02Icon } from "@hugeicons/core-free-icons";
 
@@ -30,7 +30,8 @@ export function ThemeToggle(props: { variant?: "field" | "icon"; className?: str
   const selectedTheme = THEME_OPTIONS.find((option) => option.value === theme) ?? THEME_OPTIONS[0];
   const [isOpen, setIsOpen] = useState(false);
   const variant = props.variant ?? "field";
-  const id = variant === "icon" ? "theme-menu" : "theme-select";
+  const uid = useId();
+  const id = variant === "icon" ? `theme-menu-${uid}` : `theme-select-${uid}`;
 
   if (variant === "icon") {
     function closeWhenFocusLeaves(event: FocusEvent<HTMLDivElement>) {
