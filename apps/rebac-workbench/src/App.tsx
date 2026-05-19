@@ -260,6 +260,7 @@ export function App() {
           <CardContent className="px-0 pt-0">
             <OrgTree
               scenario={scenario}
+              identityFingerprint={identityFingerprint}
               treeItems={identityTreeItems}
               currentUserId={effectiveUserId}
               selectedOrgId={selectedOrgId}
@@ -833,6 +834,7 @@ function isHighlightedChartLink(
 
 function OrgTree(props: {
   scenario: Scenario;
+  identityFingerprint: string;
   treeItems: IdentityTreeNode[];
   currentUserId: string;
   selectedOrgId: string | undefined;
@@ -1068,6 +1070,7 @@ function IdentityOrgChart(props: { items: IdentityTreeNode[]; currentUserId: str
 
 function IdentityTreeItem(props: {
   scenario: Scenario;
+  identityFingerprint: string;
   currentUserId: string;
   pendingDelete: PendingDelete;
   pendingRename: PendingRename;
@@ -1225,8 +1228,8 @@ function IdentityTreeItem(props: {
                 <IdentityRowActions
                   item={item}
                   scenario={props.scenario}
+                  identityFingerprint={props.identityFingerprint}
                   canMoveToTopLevel={Boolean(org?.parentOrgId)}
-                  disableDelete={hasTaskDependency}
                   onAddOrg={() => props.onAddOrg(item.id)}
                   onAddUser={() => props.onAddUser(item.id)}
                   onStartRename={() => props.onStartRename(item.id)}
@@ -1370,8 +1373,8 @@ function IdentityRenameEditor(props: {
 function IdentityRowActions(props: {
   item: IdentityTreeNode;
   scenario: Scenario;
+  identityFingerprint: string;
   canMoveToTopLevel?: boolean;
-  disableDelete: boolean;
   onAddOrg: () => void;
   onAddUser: () => void;
   onStartRename: () => void;
@@ -1382,7 +1385,7 @@ function IdentityRowActions(props: {
 
   useEffect(() => {
     setMoveTargets(null);
-  }, [props.scenario, props.item.id]);
+  }, [props.identityFingerprint, props.item.id]);
 
   function ensureMoveTargets() {
     if (moveTargets === null) {
@@ -1391,13 +1394,7 @@ function IdentityRowActions(props: {
   }
 
   return (
-    <DropdownMenu
-      onOpenChange={(open) => {
-        if (open) {
-          ensureMoveTargets();
-        }
-      }}
-    >
+    <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button type="button" variant="ghost" size="icon-sm" aria-label={`Open actions for ${props.item.label}`}>
           <HugeiconsIcon icon={MoreHorizontalIcon} strokeWidth={2} aria-hidden />
@@ -1448,7 +1445,7 @@ function IdentityRowActions(props: {
           </DropdownMenuSub>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem variant="destructive" disabled={props.disableDelete} onSelect={props.onStartDelete}>
+        <DropdownMenuItem variant="destructive" onSelect={props.onStartDelete}>
           <HugeiconsIcon icon={Delete02Icon} strokeWidth={2} aria-hidden />
           Delete
         </DropdownMenuItem>

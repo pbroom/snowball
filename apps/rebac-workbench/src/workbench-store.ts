@@ -228,6 +228,23 @@ export const useWorkbenchStore = create<WorkbenchStore>((set) => ({
         };
       }
 
+      const duplicateRelationship = scenario.relationships.some(
+        (relationshipItem) =>
+          relationshipItem.subjectType === state.relationshipDraft.subjectType &&
+          relationshipItem.subjectId === state.relationshipDraft.subjectId &&
+          relationshipItem.relation === state.relationshipDraft.relation &&
+          relationshipItem.objectType === state.relationshipDraft.objectType &&
+          relationshipItem.objectId === state.relationshipDraft.objectId
+      );
+      if (duplicateRelationship) {
+        return {
+          formErrors: {
+            ...state.formErrors,
+            relationship: "That relationship already exists."
+          }
+        };
+      }
+
       const id = uniqueId(
         "rel",
         `${state.relationshipDraft.subjectId}-${state.relationshipDraft.relation}-${state.relationshipDraft.objectId}`,
