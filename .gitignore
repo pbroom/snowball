@@ -1,6 +1,7 @@
 node_modules/
 dist/
 dist-types/
+.cursor/hooks/state/
 .DS_Store
 .env
 .env.*

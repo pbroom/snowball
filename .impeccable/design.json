@@ -1,0 +1,222 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-05-08T14:33:00.000Z",
+  "title": "Design System: Snowball",
+  "extensions": {
+    "colorMeta": {
+      "background": {
+        "role": "neutral",
+        "displayName": "Paper White",
+        "canonical": "oklch(1 0 0)",
+        "tonalRamp": [
+          "oklch(0.15 0 0)",
+          "oklch(0.25 0 0)",
+          "oklch(0.38 0 0)",
+          "oklch(0.5 0 0)",
+          "oklch(0.64 0 0)",
+          "oklch(0.76 0 0)",
+          "oklch(0.88 0 0)",
+          "oklch(0.98 0 0)"
+        ]
+      },
+      "foreground": {
+        "role": "neutral",
+        "displayName": "Ink Graphite",
+        "canonical": "oklch(0.148 0.004 228.8)",
+        "tonalRamp": [
+          "oklch(0.15 0.004 228.8)",
+          "oklch(0.25 0.004 228.8)",
+          "oklch(0.38 0.004 228.8)",
+          "oklch(0.5 0.004 228.8)",
+          "oklch(0.64 0.004 228.8)",
+          "oklch(0.76 0.004 228.8)",
+          "oklch(0.88 0.004 228.8)",
+          "oklch(0.95 0.004 228.8)"
+        ]
+      },
+      "primary": {
+        "role": "primary",
+        "displayName": "Investigation Emerald",
+        "canonical": "oklch(0.508 0.118 165.612)",
+        "tonalRamp": [
+          "oklch(0.15 0.118 165.612)",
+          "oklch(0.25 0.118 165.612)",
+          "oklch(0.38 0.118 165.612)",
+          "oklch(0.5 0.118 165.612)",
+          "oklch(0.64 0.118 165.612)",
+          "oklch(0.76 0.118 165.612)",
+          "oklch(0.88 0.118 165.612)",
+          "oklch(0.95 0.118 165.612)"
+        ]
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Relationship Mist",
+        "canonical": "oklch(0.963 0.002 197.1)",
+        "tonalRamp": [
+          "oklch(0.15 0.002 197.1)",
+          "oklch(0.25 0.002 197.1)",
+          "oklch(0.38 0.002 197.1)",
+          "oklch(0.5 0.002 197.1)",
+          "oklch(0.64 0.002 197.1)",
+          "oklch(0.76 0.002 197.1)",
+          "oklch(0.88 0.002 197.1)",
+          "oklch(0.96 0.002 197.1)"
+        ]
+      },
+      "destructive": {
+        "role": "destructive",
+        "displayName": "Decision Red",
+        "canonical": "oklch(0.577 0.245 27.325)",
+        "tonalRamp": [
+          "oklch(0.15 0.245 27.325)",
+          "oklch(0.25 0.245 27.325)",
+          "oklch(0.38 0.245 27.325)",
+          "oklch(0.5 0.245 27.325)",
+          "oklch(0.64 0.245 27.325)",
+          "oklch(0.76 0.245 27.325)",
+          "oklch(0.88 0.245 27.325)",
+          "oklch(0.95 0.245 27.325)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Major page or panel headings only."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Card titles, grouped control labels, and inspector headings."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Workbench copy, row text, and compact explanations."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Form labels, button text, chip text, and field captions."
+      }
+    },
+    "shadows": [
+      {
+        "name": "popover-lift",
+        "value": "shadow-md",
+        "purpose": "Select menus and other temporary overlays that need to separate from the dense workspace."
+      },
+      {
+        "name": "flat-panel-ring",
+        "value": "ring-1 ring-foreground/10",
+        "purpose": "Default card and panel boundary."
+      }
+    ],
+    "motion": [
+      {
+        "name": "state-transition",
+        "value": "transition-all or transition-colors",
+        "purpose": "Short control feedback for hover, focus, and active states."
+      },
+      {
+        "name": "popover-enter",
+        "value": "duration-100 fade-in-0 zoom-in-95",
+        "purpose": "Brief overlay entrance for select menus."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "desktop-workbench-min",
+        "value": "1180px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Compact primary action button for committing edits or running important checks.",
+      "html": "<button class=\"ds-btn-primary\">Run check</button>",
+      "css": ".ds-btn-primary { display: inline-flex; height: 1.75rem; align-items: center; justify-content: center; gap: 0.25rem; border: 1px solid transparent; border-radius: calc(0.625rem * 0.8); background: var(--primary); color: var(--primary-foreground); padding: 0 0.5rem; font: 500 0.75rem/1.5 'Inter Variable', sans-serif; white-space: nowrap; transition: background-color 150ms ease, transform 150ms ease, box-shadow 150ms ease; } .ds-btn-primary:hover { background: color-mix(in oklch, var(--primary) 80%, transparent); } .ds-btn-primary:active { transform: translateY(1px); } .ds-btn-primary:focus-visible { outline: none; border-color: var(--ring); box-shadow: 0 0 0 2px color-mix(in oklch, var(--ring) 30%, transparent); }"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Low-emphasis action button for dense tool panels.",
+      "html": "<button class=\"ds-btn-outline\">Inspect path</button>",
+      "css": ".ds-btn-outline { display: inline-flex; height: 1.75rem; align-items: center; justify-content: center; gap: 0.25rem; border: 1px solid var(--border); border-radius: calc(0.625rem * 0.8); background: transparent; color: var(--foreground); padding: 0 0.5rem; font: 500 0.75rem/1.5 'Inter Variable', sans-serif; white-space: nowrap; transition: background-color 150ms ease, color 150ms ease, box-shadow 150ms ease; } .ds-btn-outline:hover { background: color-mix(in oklch, var(--input) 50%, transparent); } .ds-btn-outline:focus-visible { outline: none; border-color: var(--ring); box-shadow: 0 0 0 2px color-mix(in oklch, var(--ring) 30%, transparent); }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input-default",
+      "description": "Compact input for scenario names, task titles, entity identifiers, and relationship values.",
+      "html": "<input class=\"ds-input\" placeholder=\"Task title\" />",
+      "css": ".ds-input { height: 1.75rem; width: 100%; min-width: 0; border: 1px solid var(--input); border-radius: calc(0.625rem * 0.8); background: color-mix(in oklch, var(--input) 20%, transparent); color: var(--foreground); padding: 0.125rem 0.5rem; font: 400 0.75rem/1.5 'Inter Variable', sans-serif; transition: border-color 150ms ease, box-shadow 150ms ease, background-color 150ms ease; } .ds-input::placeholder { color: var(--muted-foreground); } .ds-input:focus-visible { outline: none; border-color: var(--ring); box-shadow: 0 0 0 2px color-mix(in oklch, var(--ring) 30%, transparent); } .ds-input:disabled { cursor: not-allowed; opacity: 0.5; }"
+    },
+    {
+      "name": "Status Badge",
+      "kind": "chip",
+      "refersTo": "badge-status",
+      "description": "Small pill for task status, metadata, or permission result labels.",
+      "html": "<span class=\"ds-badge\">Allowed</span>",
+      "css": ".ds-badge { display: inline-flex; height: 1.25rem; width: fit-content; align-items: center; justify-content: center; gap: 0.25rem; overflow: hidden; border: 1px solid transparent; border-radius: 9999px; background: var(--primary); color: var(--primary-foreground); padding: 0.125rem 0.5rem; font: 500 0.625rem/1 'Inter Variable', sans-serif; white-space: nowrap; transition: background-color 150ms ease, box-shadow 150ms ease; } .ds-badge:focus-visible { outline: none; border-color: var(--ring); box-shadow: 0 0 0 3px color-mix(in oklch, var(--ring) 50%, transparent); }"
+    },
+    {
+      "name": "Workbench Card",
+      "kind": "card",
+      "refersTo": "card-default",
+      "description": "Flat panel container for identity, builder, inspector, config, and audit areas.",
+      "html": "<section class=\"ds-card\"><div class=\"ds-card-title\">Permission inspector</div><p class=\"ds-card-copy\">Trace why this actor can view the selected task.</p></section>",
+      "css": ".ds-card { display: flex; flex-direction: column; gap: 1rem; overflow: hidden; border-radius: 0.625rem; background: var(--card); color: var(--card-foreground); padding: 1rem; font: 400 0.75rem/1.5 'Inter Variable', sans-serif; box-shadow: 0 0 0 1px color-mix(in oklch, var(--foreground) 10%, transparent); } .ds-card-title { font: 500 0.875rem/1.25 'Inter Variable', sans-serif; } .ds-card-copy { margin: 0; color: var(--muted-foreground); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Authorization Field Notebook",
+    "overview": "Snowball should feel like a precise field notebook for access modeling: compact, gridded, and quietly analytical. The interface supports dense scenario editing, actor switching, permission explanation, validation, and audit history without adding theatrical decoration or marketing posture.\n\nThe system is product-first. It favors crisp controls, subtle tonal layers, readable labels, and small interactive affordances that let users trace causality across users, orgs, tasks, resources, and relationships.",
+    "keyCharacteristics": [
+      "Compact workbench density with clear panel boundaries.",
+      "Muted neutral surfaces with one restrained emerald primary.",
+      "Small, consistent controls optimized for repeated editing.",
+      "Focus states and validation states that are visible but not loud.",
+      "Explanatory surfaces that keep authorization logic close to the data."
+    ],
+    "rules": [
+      {
+        "name": "The Sparse Signal Rule",
+        "body": "The emerald primary is for action and authorization signal. Do not flood panels with it.",
+        "section": "colors"
+      },
+      {
+        "name": "The Mist Boundary Rule",
+        "body": "Most separation comes from thin rings, borders, and tonal shifts. Avoid heavy dividers or saturated panel backgrounds.",
+        "section": "colors"
+      },
+      {
+        "name": "The Small Text, Strong Hierarchy Rule",
+        "body": "Snowball may use small type, but every panel must still have obvious title, body, helper, and action levels.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat Workbench Rule",
+        "body": "Persistent surfaces stay flat. Elevation appears only when an element temporarily floats above the model.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do use Investigation Emerald sparingly for primary action, selected state, and authorization signal.",
+      "Do keep scenario editing, validation, and permission explanation visually close together.",
+      "Do preserve compact workbench density with clear labels and visible focus states.",
+      "Do use Flat Panel Rings for persistent containers and Popover Lift only for temporary overlays.",
+      "Do communicate permission decisions with labels, icons, and explanation paths, not color alone."
+    ],
+    "donts": [
+      "Don't use generic SaaS landing-page polish.",
+      "Don't use decorative glassmorphism.",
+      "Don't use neon cyber-security tropes.",
+      "Don't use vague AI-dashboard styling.",
+      "Don't use heavy enterprise admin chrome that hides the actual permission model.",
+      "Don't use side-stripe borders, gradient text, or repeated identical marketing card grids."
+    ]
+  }
+}
