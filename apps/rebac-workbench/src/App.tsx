@@ -35,6 +35,7 @@ import {
 import { useShallow } from "zustand/react/shallow";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -1068,6 +1069,28 @@ function IdentityOrgChart(props: { items: IdentityTreeNode[]; currentUserId: str
   );
 }
 
+function userDisplayInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) {
+    return "?";
+  }
+  if (parts.length === 1) {
+    return parts[0].slice(0, 2).toUpperCase();
+  }
+  return `${parts[0][0] ?? ""}${parts[parts.length - 1][0] ?? ""}`.toUpperCase();
+}
+
+function identityTreeItemAriaLabel(item: IdentityTreeNode, isCurrentUser: boolean, user: User | undefined): string {
+  const meta =
+    item.type === "org"
+      ? `${item.childItems.length} ${item.childItems.length === 1 ? "entry" : "entries"}`
+      : isCurrentUser
+        ? "Current actor"
+        : (user?.title ?? (user ? "User" : undefined));
+
+  return meta ? `${item.label}, ${meta}` : item.label;
+}
+
 function IdentityTreeItem(props: {
   scenario: Scenario;
   identityFingerprint: string;
@@ -1140,6 +1163,7 @@ function IdentityTreeItem(props: {
       textValue={rename ? item.label : props.pendingRename ? `\u200b${item.id}` : item.label}
       className="identity-tree-item"
       aria-expanded={hasChildItems ? isExpanded : undefined}
+      aria-label={rename ? item.label : identityTreeItemAriaLabel(item, isCurrentUser, user)}
     >
       <TreeItemContent>
         {({ allowsDragging }) => (
@@ -1178,6 +1202,11 @@ function IdentityTreeItem(props: {
               ) : (
                 <span className="identity-tree-disclosure-spacer" aria-hidden="true" />
               )}
+              {user && !rename ? (
+                <Avatar size="sm" className="identity-tree-user-avatar" aria-hidden="true">
+                  <AvatarFallback>{userDisplayInitials(item.label)}</AvatarFallback>
+                </Avatar>
+              ) : null}
               {rename ? (
                 <IdentityRenameEditor
                   label={item.label}
@@ -1189,13 +1218,6 @@ function IdentityTreeItem(props: {
               ) : (
                 <div className="identity-tree-label">
                   <span className={cn("identity-tree-title", org ? "font-semibold" : "font-medium")}>{item.label}</span>
-                  <span className="identity-tree-meta">
-                    {org
-                      ? `${item.childItems.length} ${item.childItems.length === 1 ? "entry" : "entries"}`
-                      : isCurrentUser
-                        ? "Current actor"
-                        : user?.title ?? "User"}
-                  </span>
                 </div>
               )}
             </div>
